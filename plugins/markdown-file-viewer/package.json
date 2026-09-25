@@ -1,0 +1,21 @@
+{
+  "name": "markdown-file-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Markdown enhanced file viewer for Codex",
+  "scripts": {
+    "test": "node --no-global-search-paths scripts/check.cjs",
+    "test:browser": "node scripts/check-browser.cjs",
+    "setup": "npm ci --include=dev --include=optional --ignore-scripts && npm --prefix runtime/renderer ci --include=optional --ignore-scripts"
+  },
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

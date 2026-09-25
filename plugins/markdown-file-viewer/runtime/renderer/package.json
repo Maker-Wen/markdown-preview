@@ -1,0 +1,12 @@
+{
+  "name": "markdown-file-viewer-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pinned Crossnote runtime for the Markdown file viewer",
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "dependencies": {
+    "crossnote": "0.9.39"
+  }
+}

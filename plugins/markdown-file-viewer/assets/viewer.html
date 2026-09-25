@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Markdown 增强阅读</title>
+    <style>
+      /* BUNDLED_STYLES */
+
+      :root {
+        color-scheme: light dark;
+        --paper: #fff;
+        --side: #f6f7f9;
+        --ink: #243042;
+        --muted: #677383;
+        --line: #dfe3e9;
+        --accent: #235bcc;
+        font: 15px/1.75 system-ui,-apple-system,sans-serif;
+      }
+
+      :root[data-theme=dark] {
+        color-scheme: dark;
+        --paper: #171a20;
+        --side: #20242b;
+        --ink: #e2e8f0;
+        --muted: #aab4c2;
+        --line: #383f49;
+        --accent: #9cbbff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--paper);
+        color: var(--ink);
+      }
+
+      body {
+        display: grid;
+        grid-template-rows: auto minmax(0,1fr);
+        overflow: hidden;
+      }
+
+      header {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+
+      #name {
+        margin-right: auto;
+        font-weight: 650;
+        overflow-wrap: anywhere;
+      }
+
+      #status {
+        font-size: 12px;
+        color: #278a62;
+      }
+
+      button,
+      select {
+        font: inherit;
+        font-size: 13px;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        color: var(--ink);
+        border-radius: 6px;
+        padding: 4px 9px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--side);
+      }
+
+      button:focus-visible,
+      select:focus-visible,
+      a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      .reader {
+        display: grid;
+        grid-template-columns: 220px minmax(0,1fr);
+        min-height: 0;
+      }
+
+      .reader[data-toc=hidden] {
+        grid-template-columns: minmax(0,1fr);
+      }
+
+      .reader[data-toc=hidden] aside {
+        display: none;
+      }
+
+      aside {
+        background: var(--side);
+        overflow: auto;
+        padding: 20px 16px;
+        border-right: 1px solid var(--line);
+        font-size: 13px;
+      }
+
+      aside strong {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      #toc ul,
+      #toc ol {
+        padding-left: 17px;
+        margin: 6px 0;
+      }
+
+      #toc>ul,
+      #toc>ol {
+        padding-left: 0;
+        list-style: none;
+      }
+
+      #toc a {
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      #toc a:hover {
+        color: var(--accent);
+      }
+
+      main {
+        overflow: auto;
+        min-width: 0;
+        scroll-behavior: smooth;
+      }
+
+      article,
+      #source {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 30px 38px 90px;
+        overflow-wrap: anywhere;
+      }
+
+      #source {
+        white-space: pre-wrap;
+        font: 14px/1.8 ui-monospace,monospace;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      article h1,
+      article h2,
+      article h3,
+      article h4,
+      article h5,
+      article h6 {
+        line-height: 1.35;
+        margin: 1.5em 0 .7em;
+        scroll-margin-top: 24px;
+      }
+
+      article h1 {
+        font-size: 2em;
+      }
+
+      article h2 {
+        font-size: 1.5em;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: .3em;
+      }
+
+      article h1:first-child {
+        margin-top: 0;
+      }
+
+      article a {
+        color: var(--accent);
+      }
+
+      article p {
+        margin: 0 0 1em;
+      }
+
+      article img {
+        max-width: 100%;
+      }
+
+      article blockquote {
+        margin: 0 0 1em;
+        padding: 0 1em;
+        border-left: 4px solid var(--line);
+        color: var(--muted);
+      }
+
+      article table {
+        border-collapse: collapse;
+        display: block;
+        max-width: 100%;
+        overflow: auto;
+        margin: 1em 0;
+      }
+
+      article td,
+      article th {
+        padding: 8px 14px;
+        border: 1px solid var(--line);
+      }
+
+      article th {
+        background: var(--side);
+      }
+
+      article code {
+        font: .9em ui-monospace,monospace;
+        background: var(--side);
+        padding: 2px 5px;
+        border-radius: 4px;
+      }
+
+      article pre {
+        padding: 16px;
+        overflow: auto;
+        background: var(--side);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      article pre code {
+        padding: 0;
+        white-space: pre;
+        background: none;
+        text-shadow: none;
+        color: inherit;
+      }
+
+      article .mermaid {
+        padding: 16px 0;
+        text-align: center;
+        overflow: auto;
+      }
+
+      article .mermaid svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      article .katex-display {
+        overflow: auto hidden;
+        padding: 6px 0;
+      }
+
+      .image-unavailable {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      #error {
+        margin: 12px 20px;
+        color: #c34837;
+        white-space: pre-wrap;
+      }
+
+      #detail {
+        padding: 10px 20px;
+        color: var(--muted);
+        font-size: 11px;
+        border-top: 1px solid var(--line);
+      }
+
+      :root[data-theme=dark] .token {
+        background: none;
+        text-shadow: none;
+        color: var(--ink);
+      }
+
+      :root[data-theme=dark] .token.keyword {
+        color: #c4a5ff;
+      }
+
+      :root[data-theme=dark] .token.string {
+        color: #8ed7b4;
+      }
+
+      :root[data-theme=dark] .token.function {
+        color: #a5c9ff;
+      }
+
+      article pre[class*=language-],
+      article code[class*=language-] {
+        background: var(--side);
+        color: var(--ink);
+        text-shadow: none;
+      }
+
+      @media (max-width:700px) {
+        .reader {
+          grid-template-columns: minmax(0,1fr);
+          grid-template-rows: auto minmax(0,1fr);
+        }
+
+        aside {
+          max-height: 28vh;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 12px 18px;
+        }
+
+        .reader[data-toc=hidden] {
+          grid-template-rows: minmax(0,1fr);
+        }
+
+        article,
+        #source {
+          padding: 24px 20px 70px;
+        }
+
+        header {
+          padding: 10px 14px;
+          gap: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span id="name">Markdown</span>
+      <span id="status" role="status">正在载入…</span>
+      <button id="toggle-toc" aria-expanded="true">目录</button>
+      <button id="toggle-source" aria-pressed="false">查看源码</button>
+      <select id="theme" aria-label="阅读主题">
+        <option value="system">跟随系统</option>
+        <option value="light">浅色</option>
+        <option value="dark">深色</option>
+      </select>
+    </header>
+    <div class="reader" id="reader">
+      <aside aria-label="文档目录">
+        <strong>目录</strong>
+        <nav id="toc"></nav>
+      </aside>
+      <main id="main">
+        <p id="error" role="alert" hidden></p>
+        <article id="content" class="markdown-preview crossnote"></article>
+        <pre id="source" aria-label="Markdown 源码" hidden></pre>
+        <div id="detail"></div>
+      </main>
+    </div>
+    <script>/* BUNDLED_MERMAID */</script>
+    <script>
+      'use strict';
+
+      // Capture the shell before rendering headings that may use the same IDs.
+      const nodes = new Map(
+        Array.from(document.querySelectorAll('[id]'), node => [node.id, node])
+      );
+      const $ = id => nodes.get(id);
+      const media = matchMedia('(prefers-color-scheme: dark)');
+      let documentOutput;
+      let generation = 0;
+
+      function refreshTheme() {
+        const selected = $('theme').value;
+        const dark = selected === 'dark' || (selected === 'system' && media.matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'strict',
+          theme: dark ? 'dark' : 'default'
+        });
+        if (documentOutput) show({ toolOutput: documentOutput });
+      }
+
+      function setError(message) {
+        $('error').textContent = message;
+        $('error').hidden = !message;
+      }
+
+      function showReadError(message) {
+        generation++;
+        documentOutput = null;
+        $('status').textContent = '读取失败';
+        setError(message);
+        $('content').replaceChildren();
+        $('toc').replaceChildren();
+        $('source').textContent = '';
+      }
+
+      async function renderDiagrams(id = generation) {
+        if ($('content').hidden) return;
+        try {
+          await mermaid.run({ nodes: $('content').querySelectorAll('.mermaid') });
+        } catch {
+          if (id === generation) {
+            setError('有一张图表无法渲染，可切换到源码检查语法。');
+          }
+        }
+      }
+
+      async function show(globals = window.openai) {
+        const output = globals?.toolOutput ?? window.openai?.toolOutput;
+        const response = globals?.toolResponseMetadata ?? window.openai?.toolResponseMetadata;
+        if (response?.status === 'error' || output?.error) {
+          showReadError(
+            typeof output?.error === 'string'
+              ? output.error
+              : '无法读取文档，请关闭后重新打开。'
+          );
+          return;
+        }
+        if (!output) return;
+        if (
+          typeof output.text !== 'string' ||
+          typeof output.name !== 'string' ||
+          typeof output.html !== 'string' ||
+          !Number.isFinite(output.bytes)
+        ) {
+          showReadError('插件返回了无效的文档内容，请关闭后重新打开。');
+          return;
+        }
+
+        const id = ++generation;
+        const sameFile = documentOutput?.resourceUri === output.resourceUri;
+        const scroll = sameFile ? $('main').scrollTop : 0;
+        documentOutput = output;
+        $('name').textContent = output.name;
+        document.title = output.name + ' · 增强阅读';
+        $('source').textContent = output.text;
+        $('detail').textContent = output.bytes.toLocaleString() + ' 字节';
+        setError('');
+        $('content').innerHTML = output.html;
+        $('toc').innerHTML = output.toc || '<p>此文档没有标题。</p>';
+        $('status').textContent = '✓ 增强阅读';
+        $('main').scrollTop = scroll;
+        await renderDiagrams(id);
+      }
+
+      $('toggle-toc').addEventListener('click', () => {
+        const visible = $('reader').dataset.toc === 'hidden';
+        $('reader').dataset.toc = visible ? 'visible' : 'hidden';
+        $('toggle-toc').setAttribute('aria-expanded', String(visible));
+      });
+
+      $('toggle-source').addEventListener('click', () => {
+        const source = $('source').hidden;
+        $('source').hidden = !source;
+        $('content').hidden = source;
+        $('toggle-source').textContent = source ? '返回阅读' : '查看源码';
+        $('toggle-source').setAttribute('aria-pressed', String(source));
+        if (!source) renderDiagrams();
+      });
+
+      document.addEventListener('click', event => {
+        const link = event.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (href.startsWith('#')) {
+          event.preventDefault();
+          let id;
+          try {
+            id = decodeURIComponent(href.slice(1));
+          } catch {
+            return;
+          }
+          $('content')
+            .querySelector('[id="' + CSS.escape(id) + '"]')
+            ?.scrollIntoView({ block: 'start' });
+        } else if (/^(https?:\/\/|mailto:)/i.test(href)) {
+          event.preventDefault();
+          window.openai?.openExternal?.({ href });
+        }
+      });
+
+      $('theme').addEventListener('change', refreshTheme);
+      media.addEventListener('change', () => {
+        if ($('theme').value === 'system') refreshTheme();
+      });
+      if (matchMedia('(max-width:700px)').matches) {
+        $('reader').dataset.toc = 'hidden';
+        $('toggle-toc').setAttribute('aria-expanded', 'false');
+      }
+      window.addEventListener('openai:set_globals', event => show(event.detail?.globals));
+      refreshTheme();
+      show();
+    </script>
+  </body>
+</html>

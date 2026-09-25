@@ -1,0 +1,19 @@
+{
+  "name": "markdown-file-viewer",
+  "version": "0.1.0+codex.20260925030109",
+  "description": "Open Markdown source files directly in an enhanced Codex reader.",
+  "author": {
+    "name": "Local developer"
+  },
+  "interface": {
+    "displayName": "Markdown \u589e\u5f3a\u9605\u8bfb",
+    "shortDescription": "\u70b9\u51fb Markdown \u6587\u4ef6\uff0c\u5373\u53ef\u9605\u8bfb\u76ee\u5f55\u3001\u516c\u5f0f\u3001\u6d41\u7a0b\u56fe\u548c\u9ad8\u4eae\u4ee3\u7801\u3002",
+    "longDescription": "\u5728 Codex \u6587\u4ef6\u6807\u7b7e\u9875\u5185\u589e\u5f3a\u9605\u8bfb Markdown\uff0c\u652f\u6301\u5b8c\u6574\u76ee\u5f55\u3001\u8868\u683c\u3001\u4ee3\u7801\u9ad8\u4eae\u3001KaTeX \u516c\u5f0f\u3001Mermaid \u6d41\u7a0b\u56fe\u3001\u672c\u5730\u56fe\u7247\u548c\u6e90\u7801\u5207\u6362\u3002",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "MCP file viewer"
+    ],
+    "defaultPrompt": "\u6253\u5f00\u5e76\u589e\u5f3a\u9605\u8bfb Markdown \u6587\u4ef6\u3002"
+  }
+}
