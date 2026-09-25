@@ -45,6 +45,14 @@ async function notebookFor(root) {
       .replace(/^([^\n]*!\[[^\n]*)$/gm, '$1 <!-- preview-image -->').replace(/!\[\[/g, '\\!\\[\\['),
       onDidParseMarkdown: async html => html }
   } });
+  const validateLink = notebook.md.validateLink;
+  notebook.md.validateLink = href => /^file:\/\/(?:\/|localhost\/)/i.test(href) || validateLink(href);
+  const linkOpen = notebook.md.renderer.rules.link_open;
+  notebook.md.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
+    // Crossnote rewrites local hrefs; keep the Markdown target until we resolve it ourselves.
+    tokens[index].attrSet('data-reader-href', tokens[index].attrGet('href'));
+    return linkOpen ? linkOpen(tokens, index, options, env, renderer) : renderer.renderToken(tokens, index, options);
+  };
   notebook.md.core.ruler.push('readonly-fences', state => {
     const restore = tokens => {
       for (const token of tokens) {
@@ -111,8 +119,27 @@ async function render(file, text) {
     }
   }
   for (const a of $('a[href]').toArray()) {
-    const href = $(a).attr('href');
-    if (!/^(#|https?:\/\/|mailto:)/i.test(href)) $(a).removeAttr('href').attr('title', '请从文件列表打开此文档');
+    const link = $(a);
+    const href = link.attr('data-reader-href') ?? link.attr('href');
+    link.removeAttr('data-reader-href').removeAttr('data-file-path').removeAttr('data-link-error');
+    try {
+      if (href.startsWith('#') || /^(https?:\/\/|mailto:)/i.test(href)) {
+        link.attr('href', href);
+      } else {
+        if (/^[/\\]{2}/.test(href)) throw new Error('暂不支持网络共享路径。');
+        const url = new URL(href, pathToFileURL(file));
+        if (url.protocol !== 'file:') throw new Error('暂不支持此链接类型。');
+        const target = fileURLToPath(url);
+        if (/[\x00-\x1f\x7f]/.test(target) || !path.isAbsolute(target)) throw new Error('文件链接的路径无效。');
+        if (target === file && url.hash) link.attr('href', url.hash);
+        else {
+          link.attr('href', url.href).attr('data-file-path', target);
+          if (url.hash) link.attr('title', '打开目标文件；暂不定位到文件内的标题。');
+        }
+      }
+    } catch (error) {
+      link.attr('href', '#').attr('data-link-error', error.code ? '文件链接的路径无效。' : error.message);
+    }
   }
   // Crossnote's tocHTML includes raw heading HTML. Build link labels as text instead.
   const toc = $('<div class="md-toc"></div>');
@@ -139,7 +166,9 @@ async function viewerHtml() {
   const styles = ['styles/prism_theme/github.css', 'styles/markdown-it-admonition.css', 'styles/markdown-it-callout.css'];
   const css = (await Promise.all(styles.map(file => fs.readFile(path.join(build, file), 'utf8')))).join('\n') + katex;
   const mermaid = await fs.readFile(path.join(build, 'dependencies/mermaid/mermaid.min.js'), 'utf8');
+  const hostBridge = await fs.readFile(path.join(__dirname, '../assets/host-bridge.js'), 'utf8');
   return template.replace('/* BUNDLED_STYLES */', () => css.replace(/<\/style/gi, '<\\/style'))
+    .replace('/* BUNDLED_HOST_BRIDGE */', () => hostBridge.replace(/<\/script/gi, '<\\/script'))
     .replace('/* BUNDLED_MERMAID */', () => mermaid.replace(/<\/script/gi, '<\\/script'));
 }
 module.exports = { render, viewerHtml };

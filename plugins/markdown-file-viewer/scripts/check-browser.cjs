@@ -204,6 +204,125 @@ const { render, viewerHtml } = require('./render.cjs');
       await narrow.screenshot({ path: path.join(directory, 'narrow.png') });
       await narrow.close(); return size;
     });
+    await check('Partitioned source preserves newlines and exact selected copying', async () => {
+      const samples = ['', '\n', 'a\n\n\nb', 'a\r\n\r\nb\r\n', 'a\rb', '中文🦊\n\n尾部\n', '单行'.repeat(1000)];
+      for (const sourceText of samples) {
+        await event(page, { toolResponseMetadata: {}, toolOutput: { name: 'source.md', resourceUri: 'codex-resource://source-copy',
+          text: sourceText, bytes: Buffer.byteLength(sourceText), html: '<h1 id="copy-outside">Outside source</h1>', toc: '' } });
+        if (!await page.locator('#source').isVisible()) await page.locator('#toggle-source').click();
+        assert.equal(await page.locator('#source').textContent(), sourceText);
+        if (!sourceText.length) continue;
+        for (const [start, end] of [[0, sourceText.length], [1, sourceText.length - 1]].filter(([a, b]) => a < b)) {
+          const copied = await page.evaluate(({ start, end }) => {
+            const source = document.getElementById('source');
+            const boundary = offset => {
+              const walker = document.createTreeWalker(source, NodeFilter.SHOW_TEXT);
+              for (let node; node = walker.nextNode();) {
+                if (offset <= node.length) return [node, offset];
+                offset -= node.length;
+              }
+              return [source, source.childNodes.length];
+            };
+            const range = document.createRange(); range.setStart(...boundary(start)); range.setEnd(...boundary(end));
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            let copied;
+            const event = new Event('copy', { bubbles: true, cancelable: true });
+            Object.defineProperty(event, 'clipboardData', { value: { setData: (type, text) => { if (type === 'text/plain') copied = text; } } });
+            document.dispatchEvent(event); selection.removeAllRanges();
+            return { text: copied, handled: event.defaultPrevented };
+          }, { start, end });
+          assert.equal(copied.text, sourceText.slice(start, end)); assert.equal(copied.handled, true);
+        }
+      }
+      await page.locator('#toggle-source').click();
+      const outsideHandled = await page.evaluate(() => {
+        const range = document.createRange(); range.selectNodeContents(document.getElementById('content'));
+        const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+        const event = new Event('copy', { bubbles: true, cancelable: true });
+        Object.defineProperty(event, 'clipboardData', { value: { setData: () => {} } });
+        document.dispatchEvent(event); selection.removeAllRanges(); return event.defaultPrevented;
+      });
+      assert.equal(outsideHandled, false);
+      return { samples: samples.length, exactSourceAndSelections: true, outsideCopyUnchanged: true };
+    });
+    await check('Local and web links use the host bridge and surface failures', async () => {
+      const linkText = '# 链接检查\n\n[相对文件](<./中文 空格%23.md>)\n\n[绝对文件](/private/tmp/result.json)\n\n[图片](/private/tmp/image.jpg)\n\n[代码](/private/tmp/check.cjs)\n\n[网页](https://example.com/)\n\n[HTTP](http://localhost:8000/)\n\n[邮件](mailto:user@example.com)\n\n[锚点](#终点)\n\n[禁止](ftp://example.com/file)\n\n## 终点\n';
+      const linkOutput = { name: 'links.md', resourceUri: 'codex-resource://links', text: linkText,
+        bytes: Buffer.byteLength(linkText), ...await render(file, linkText) };
+      const host = await context.newPage();
+      host.on('pageerror', error => pageErrors.push(error.message));
+      try {
+        await host.setContent('<iframe style="width:100%;height:850px;border:0"></iframe>');
+        await host.evaluate(html => {
+          const frame = document.querySelector('iframe');
+          window.requests = [];
+          window.capabilities = { experimental: { 'openai/files': {} }, openLinks: {} };
+          window.addEventListener('message', event => {
+            if (event.source !== frame.contentWindow || event.data?.jsonrpc !== '2.0') return;
+            const message = event.data;
+            window.requests.push(message);
+            if (!message.id) return;
+            if (window.hold && message.method === 'openai/files/open') { window.held = message; return; }
+            const result = message.method === 'ui/initialize'
+              ? { protocolVersion: '2026-01-26', hostInfo: { name: 'offline-test', version: '1' },
+                hostCapabilities: window.capabilities, hostContext: {} } : {};
+            const reply = window.rejectNext && message.method !== 'ui/initialize'
+              ? { error: { code: -32000, message: 'TEST_OPEN_FAILED' } } : { result };
+            window.rejectNext = false;
+            frame.contentWindow.postMessage({ jsonrpc: '2.0', id: message.id, ...reply }, '*');
+          });
+          frame.srcdoc = html;
+        }, bootstrap(linkOutput));
+        const frame = host.frameLocator('iframe');
+        const body = frame.locator('body');
+        await frame.locator('#status').filter({ hasText: '增强阅读' }).waitFor();
+        assert.deepEqual(await host.evaluate(() => window.requests), []);
+        await frame.locator('#content a').filter({ hasText: '锚点' }).click();
+        assert.deepEqual(await host.evaluate(() => window.requests), []);
+        const targets = [['相对文件', path.join(path.dirname(file), '中文 空格#.md')],
+          ['绝对文件', '/private/tmp/result.json'], ['图片', '/private/tmp/image.jpg'], ['代码', '/private/tmp/check.cjs']];
+        for (const [label, expected] of targets) {
+          await frame.locator('#content a').filter({ hasText: label }).click();
+          await host.waitForFunction(value => window.requests.some(r => r.method === 'openai/files/open' && r.params.path === value), expected);
+        }
+        for (const [label, expected] of [['网页', 'https://example.com/'], ['HTTP', 'http://localhost:8000/'], ['邮件', 'mailto:user@example.com']]) {
+          await frame.locator('#content a').filter({ hasText: label }).click();
+          await host.waitForFunction(value => window.requests.some(r => r.method === 'ui/open-link' && r.params.url === value), expected);
+        }
+        const messages = await host.evaluate(() => window.requests);
+        assert.deepEqual(messages.slice(0, 3).map(m => m.method), ['ui/initialize', 'ui/notifications/initialized', 'openai/files/open']);
+        assert.equal(messages.filter(m => m.method === 'ui/initialize').length, 1);
+        await host.evaluate(() => { window.rejectNext = true; });
+        await frame.locator('#content a').filter({ hasText: '绝对文件' }).click();
+        await frame.locator('#error').filter({ hasText: 'TEST_OPEN_FAILED' }).waitFor();
+        await frame.locator('#content a').filter({ hasText: '禁止' }).click();
+        await frame.locator('#error').filter({ hasText: '暂不支持此链接类型' }).waitFor();
+        // A JSON-RPC reply from the app itself must not impersonate its parent host.
+        await host.evaluate(() => { window.hold = true; });
+        await body.evaluate(() => {
+          window.probeSettled = false;
+          window.markdownHost.openFile('/private/tmp/probe.md').then(() => { window.probeSettled = true; });
+        });
+        await host.waitForFunction(() => window.held);
+        const held = await host.evaluate(() => window.held);
+        await body.evaluate((_, id) => { window.postMessage({ jsonrpc: '2.0', id, result: {} }, '*'); }, held.id);
+        await body.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        assert.equal(await body.evaluate(() => window.probeSettled), false);
+        await host.evaluate(() => document.querySelector('iframe').contentWindow.postMessage({ jsonrpc: '2.0', id: window.held.id, result: {} }, '*'));
+        await body.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+        assert.equal(await body.evaluate(() => window.probeSettled), true);
+        // A new app instance must explain absent file-opening support without navigating away.
+        await host.evaluate(html => {
+          window.capabilities = { openLinks: {} }; window.requests = []; window.hold = false;
+          document.querySelector('iframe').srcdoc = html;
+        }, bootstrap(linkOutput));
+        await frame.locator('#content a').filter({ hasText: '绝对文件' }).click();
+        await frame.locator('#error').filter({ hasText: '不支持从预览打开本地文件' }).waitFor();
+        assert.equal(await host.evaluate(() => window.requests.some(m => m.method === 'openai/files/open')), false);
+        assert.equal(await frame.locator('#source').textContent(), linkText);
+        return { fileLinks: targets.length, webLinks: 3, errorsVisible: true, parentValidated: true };
+      } finally { await host.close(); }
+    });
     await check('Self-contained UI makes no network requests', async () => { assert.deepEqual(requests, []); });
     await check('No uncaught browser errors', async () => { assert.deepEqual(pageErrors, []); });
   } finally {

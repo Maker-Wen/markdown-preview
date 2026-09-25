@@ -44,6 +44,35 @@ const { readFileBounded } = require('./files.cjs');
     assert.match(a.structuredContent.html, /资源链接指向当前文档目录之外/);
     assert.doesNotMatch(a.structuredContent.html, /<script|OUTSIDE_SENTINEL/);
     const { render } = require('./render.cjs');
+    const cheerio = require('../runtime/renderer/node_modules/cheerio');
+    const links = cheerio.load((await render(file, [
+      '[same](<./中文 空格%23%25.md>)',
+      '[parent](../parent.md#section)',
+      '[absolute](/private/tmp/example.md)',
+      '[file](file:///private/tmp/example.md)',
+      '[web](https://example.com/?x=1&y=2)',
+      '[anchor](#section)',
+      '[spoofed-web](https://example.com/){data-file-path="/private/tmp/secret.txt"}',
+      '[spoofed-file](./legit.md){data-link-error="spoofed error"}',
+      '[network](//server/share.md)',
+      '[unsupported](ftp://example.com/file)',
+      '[unsafe](javascript:alert(1))'
+    ].join('\n\n'))).html);
+    const link = label => links('a').filter((_, node) => links(node).text() === label);
+    assert.equal(link('same').attr('data-file-path'), path.join(docs, '中文 空格#%.md'));
+    assert.equal(link('parent').attr('data-file-path'), path.join(dir, 'parent.md'));
+    assert.equal(link('absolute').attr('data-file-path'), '/private/tmp/example.md');
+    assert.equal(link('file').attr('data-file-path'), '/private/tmp/example.md');
+    assert.equal(link('web').attr('href'), 'https://example.com/?x=1&y=2');
+    assert.equal(link('anchor').attr('href'), '#section');
+    assert.equal(link('spoofed-web').attr('href'), 'https://example.com/');
+    assert.equal(link('spoofed-web').attr('data-file-path'), undefined);
+    assert.equal(link('spoofed-file').attr('data-file-path'), path.join(docs, 'legit.md'));
+    assert.equal(link('spoofed-file').attr('data-link-error'), undefined);
+    assert.ok(link('network').attr('data-link-error'));
+    assert.ok(link('unsupported').attr('data-link-error'));
+    assert.equal(link('unsafe').length, 0);
+    assert.equal(links('[data-reader-href]').length, 0);
     const unsafeHeading = await render(file, '# <img src=x onerror="alert(1)">\n\n# <svg onload="alert(1)">');
     assert.doesNotMatch(unsafeHeading.toc, /<(img|svg|script)\b/i);
     assert.match(unsafeHeading.toc, /&lt;img/);
@@ -65,15 +94,15 @@ const { readFileBounded } = require('./files.cjs');
     assert.equal((await client.callTool(request)).isError, true);
     const secret = path.join(dir, 'not-markdown.txt');
     await fs.writeFile(secret, 'not accessible through this viewer');
-    const link = path.join(docs, 'linked.md');
-    await fs.symlink(secret, link);
-    assert.equal((await client.callTool({ ...request, arguments: { file: { name: 'linked.md', resourceUri: 'codex-resource://test-link' } }, _meta: { 'openai/resource': { path: link } } })).isError, true);
+    const symlink = path.join(docs, 'linked.md');
+    await fs.symlink(secret, symlink);
+    assert.equal((await client.callTool({ ...request, arguments: { file: { name: 'linked.md', resourceUri: 'codex-resource://test-link' } }, _meta: { 'openai/resource': { path: symlink } } })).isError, true);
     const boundary = path.join(dir, 'size-limit.bin');
     await fs.writeFile(boundary, Buffer.alloc(1024));
     assert.equal((await readFileBounded(boundary, 1024)).length, 1024);
     await assert.rejects(readFileBounded(boundary, 1023), RangeError);
     await assert.rejects(readFileBounded(docs, 1024), /普通文件/);
-    await assert.rejects(readFileBounded(link, 1024), { code: 'ELOOP' });
-    console.log('PASS: MCP registration + bundled UI, full Markdown/TOC/KaTeX/Mermaid/highlight, local image, escaped HTML/import, image boundary, reread/isolation, input and size checks.');
+    await assert.rejects(readFileBounded(symlink, 1024), { code: 'ELOOP' });
+    console.log('PASS: MCP registration + bundled UI, Markdown/TOC/KaTeX/Mermaid/highlight, local images and links, escaped HTML/import, image boundary, reread/isolation, input and size checks.');
   } finally { await client.close(); await fs.rm(dir, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

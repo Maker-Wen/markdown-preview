@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "markdown-file-viewer",
-  "version": "0.1.0+codex.20260925030109",
+  "version": "0.1.0+codex.20260925064827",
   "description": "Open Markdown source files directly in an enhanced Codex reader."
 }
