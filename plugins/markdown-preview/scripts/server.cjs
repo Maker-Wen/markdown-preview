@@ -4,17 +4,16 @@ const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio
 const { z } = require('zod');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { readFileBounded } = require('./files.cjs');
+const { readRegularFile } = require('./files.cjs');
 
-const UI = 'ui://markdown-file-viewer/reader-v1.html';
-const LIMIT = 1024 * 1024;
-const server = new McpServer({ name: 'markdown-file-viewer-mcp-server', version: '0.1.0' });
+const UI = 'ui://markdown-preview/reader-v1.html';
+const server = new McpServer({ name: 'markdown-preview-mcp-server', version: '1.0.0' });
 const log = (event, detail = {}) => {
   const row = JSON.stringify({ time: new Date().toISOString(), pid: process.pid, event, ...detail });
   process.stderr.write(row + '\n');
 };
 
-server.registerResource('markdown_viewer_ui', UI, { mimeType: 'text/html;profile=mcp-app' }, async () => {
+server.registerResource('markdown_preview_ui', UI, { mimeType: 'text/html;profile=mcp-app' }, async () => {
   log('ui_resource_read');
   return { contents: [{ uri: UI, mimeType: 'text/html;profile=mcp-app',
     text: await require('./render.cjs').viewerHtml(),
@@ -22,8 +21,8 @@ server.registerResource('markdown_viewer_ui', UI, { mimeType: 'text/html;profile
   }] };
 });
 
-server.registerTool('markdown_file_viewer_open', {
-  title: 'Markdown 增强阅读',
+server.registerTool('markdown_preview_open', {
+  title: 'Markdown Preview',
   description: 'Display the Markdown file explicitly opened by the Codex file viewer. Requires host-provided file context; no arbitrary path argument.',
   inputSchema: { file: z.object({ name: z.string().min(1), resourceUri: z.string().startsWith('codex-resource://') }) },
   outputSchema: {
@@ -44,16 +43,15 @@ server.registerTool('markdown_file_viewer_open', {
     }
     const realPath = await fs.realpath(suppliedPath);
     if (!/\.(md|markdown)$/i.test(realPath)) throw new Error('只能通过此查看器打开 Markdown 文件。');
-    const bytes = await readFileBounded(realPath, LIMIT);
+    const bytes = await readRegularFile(realPath);
     const text = bytes.toString('utf8');
     const rendered = await require('./render.cjs').render(realPath, text);
     const output = { name: file.name, resourceUri: file.resourceUri, text, ...rendered, bytes: bytes.length };
     log('file_open', { name: output.name, bytes: output.bytes });
-    return { content: [{ type: 'text', text: `Markdown 文件查看器已读取 ${output.name}（${output.bytes} 字节）。` }], structuredContent: output };
+    return { content: [{ type: 'text', text: `Markdown Preview 已读取 ${output.name}（${output.bytes} 字节）。` }], structuredContent: output };
   } catch (error) {
     log('file_open_error', { name: file.name, code: error.code ?? error.name });
-    const message = error instanceof RangeError ? '文档超过 1 MiB 的预览大小限制。'
-      : error.code ? `读取失败（${error.code}）。` : error.message;
+    const message = error.code ? `读取失败（${error.code}）。` : error.message;
     return { isError: true, content: [{ type: 'text', text: message }] };
   }
 });

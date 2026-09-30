@@ -1,11 +1,11 @@
 {
-  "name": "markdown-file-viewer",
-  "version": "0.1.0",
+  "name": "markdown-preview",
+  "version": "1.0.0",
   "private": true,
-  "description": "Markdown enhanced file viewer for Codex",
+  "description": "Enhanced Markdown preview for Codex",
   "scripts": {
-    "test": "node --no-global-search-paths scripts/check.cjs",
-    "test:browser": "node scripts/check-browser.cjs",
+    "test": "node --no-global-search-paths scripts/test-mcp.cjs",
+    "test:browser": "node scripts/test-browser.cjs",
     "setup": "npm ci --include=dev --include=optional --ignore-scripts && npm --prefix runtime/renderer ci --include=optional --ignore-scripts"
   },
   "engines": {

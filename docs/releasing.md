@@ -13,7 +13,7 @@
 | 校验文件 | `SHA256SUMS` |
 | 自有市场 | `markdown-preview-marketplace` |
 
-仓库、Release 和 raw 脚本 URL 在 GitHub 仓库正式创建后才是可访问地址。发布前不要把占位 URL 写成已验证链接。
+仓库已创建；Release 资产和 raw 脚本 URL 要在完成推送与 Release 上传后再做远程安装验证。
 
 ## 发布前检查
 
@@ -55,7 +55,7 @@ shasum -a 256 markdown-preview-v1.0.0.tar.gz > SHA256SUMS
 ## 创建标签和 GitHub Release
 
 ```sh
-git add README.md CHANGELOG.md docs install.sh install.ps1 install-remote.sh install-remote.ps1 scripts plugins .agents tests
+git add README.md CHANGELOG.md docs install.sh install.ps1 install-remote.sh install-remote.ps1 scripts plugins .agents tests .github .gitignore
 git commit -m "release: markdown preview v1.0.0"
 git tag -a v1.0.0 -m "Markdown Preview 1.0.0"
 git push origin <branch>
@@ -74,19 +74,19 @@ git push origin v1.0.0
 远程安装脚本不要求用户手动 clone：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.ps1 | iex
+irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.ps1 | iex
 ```
 
 脚本默认使用 `Maker-Wen/markdown-preview` 与 `v1.0.0`，下载 Release 归档和 `SHA256SUMS`，校验成功后调用本地安装器。需要临时切换源或版本时，使用：
 
 ```sh
-MARKDOWN_PREVIEW_REPOSITORY=<owner>/<repository> \
+MARKDOWN_PREVIEW_REPOSITORY=Maker-Wen/markdown-preview \
 MARKDOWN_PREVIEW_VERSION=v1.0.0 \
   sh install-remote.sh
 ```

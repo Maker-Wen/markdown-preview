@@ -3,12 +3,11 @@ const fs = require('node:fs/promises');
 const { constants } = require('node:fs');
 
 // Callers validate the real path and its scope before opening it.
-async function readFileBounded(file, limit) {
+async function readRegularFile(file) {
   const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error('只能预览普通文件。');
-    if (stat.size > limit) throw new RangeError('文件超过预览大小限制。');
 
     const buffer = Buffer.alloc(stat.size + 1);
     let used = 0;
@@ -24,4 +23,4 @@ async function readFileBounded(file, limit) {
   }
 }
 
-module.exports = { readFileBounded };
+module.exports = { readRegularFile };

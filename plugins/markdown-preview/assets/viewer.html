@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Markdown 增强阅读</title>
+    <title>Markdown Preview</title>
     <style>
       /* BUNDLED_STYLES */
 
@@ -116,18 +116,6 @@
         color: var(--muted);
       }
 
-      #toc ul,
-      #toc ol {
-        padding-left: 17px;
-        margin: 6px 0;
-      }
-
-      #toc>ul,
-      #toc>ol {
-        padding-left: 0;
-        list-style: none;
-      }
-
       #toc a {
         color: var(--muted);
         text-decoration: none;
@@ -158,6 +146,7 @@
 
       pre#source > span {
         display: block;
+        min-height: 1.8em;
       }
 
       [hidden] {
@@ -394,12 +383,21 @@
 
       function showSource(text) {
         const fragment = document.createDocumentFragment();
-        for (const line of text.split(/(?<=\n)/u)) {
+        const lines = text.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [''];
+        if (/[\r\n]$/.test(text)) lines.push('');
+        for (const line of lines) {
           const span = document.createElement('span');
           span.textContent = line;
           fragment.append(span);
         }
         $('source').replaceChildren(fragment);
+      }
+
+      function setSourceMode(source) {
+        $('source').hidden = !source;
+        $('content').hidden = source;
+        $('toggle-source').textContent = source ? '返回阅读' : '查看源码';
+        $('toggle-source').setAttribute('aria-pressed', String(source));
       }
 
       function showReadError(message) {
@@ -450,7 +448,7 @@
         const scroll = sameFile ? $('main').scrollTop : 0;
         documentOutput = output;
         $('name').textContent = output.name;
-        document.title = output.name + ' · 增强阅读';
+        document.title = output.name + ' · Markdown Preview';
         showSource(output.text);
         $('detail').textContent = output.bytes.toLocaleString() + ' 字节';
         setError('');
@@ -459,6 +457,8 @@
         $('status').textContent = '✓ 增强阅读';
         $('main').scrollTop = scroll;
         await renderDiagrams(id);
+        if (id !== generation) return;
+        $('main').scrollTo({ top: scroll, behavior: 'instant' });
       }
 
       $('toggle-toc').addEventListener('click', () => {
@@ -478,10 +478,7 @@
 
       $('toggle-source').addEventListener('click', () => {
         const source = $('source').hidden;
-        $('source').hidden = !source;
-        $('content').hidden = source;
-        $('toggle-source').textContent = source ? '返回阅读' : '查看源码';
-        $('toggle-source').setAttribute('aria-pressed', String(source));
+        setSourceMode(source);
         if (!source) renderDiagrams();
       });
 

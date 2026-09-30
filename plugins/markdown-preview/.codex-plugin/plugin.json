@@ -1,0 +1,19 @@
+{
+  "name": "markdown-preview",
+  "version": "1.0.0",
+  "description": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。",
+  "author": {
+    "name": "Local developer"
+  },
+  "interface": {
+    "displayName": "Markdown Preview",
+    "shortDescription": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。",
+    "longDescription": "在 Codex 文件标签页中预览 Markdown 文档，提供目录导航、表格、代码高亮、KaTeX 公式、Mermaid 图表、本地图片和源码查看。",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": [
+      "MCP file viewer"
+    ],
+    "defaultPrompt": "使用 Markdown Preview 预览 Markdown 文档。"
+  }
+}

@@ -2,7 +2,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL, fileURLToPath } = require('node:url');
-const { readFileBounded } = require('./files.cjs');
+const { readRegularFile } = require('./files.cjs');
 const crossnotePath = require.resolve('crossnote', { paths: [path.join(__dirname, '../runtime/renderer')] });
 const { Notebook, MarkdownEngine, utility } = require(crossnotePath);
 const cheerio = require(require.resolve('cheerio', { paths: [path.dirname(crossnotePath)] }));
@@ -86,11 +86,10 @@ async function render(file, text) {
   const root = path.dirname(file);
   const notebook = await notebookFor(root);
   const engine = new MarkdownEngine({ notebook, filePath: file });
-  const result = await engine.parseMD(text, { isForPreview: true, useRelativeFilePath: false,
+  // Crossnote treats an empty string as a request to reread its file.
+  const result = await engine.parseMD(text === '' ? '\n' : text, { isForPreview: true, useRelativeFilePath: false,
     hideFrontMatter: false, runAllCodeChunks: false, triggeredBySave: false, vscodePreviewPanel: {} });
   const $ = cheerio.load(result.html, {}, false);
-  // ponytail: embed at most 5 MiB of local images per document; add streamed resources for larger documents.
-  let remaining = 5 * 1024 * 1024;
   for (const img of $('img').toArray()) {
     const src = $(img).attr('src') || '';
     try {
@@ -101,12 +100,10 @@ async function render(file, text) {
       const imagePath = await localFile(decoded, root);
       const type = imageTypes[path.extname(imagePath).toLowerCase()];
       if (!type) throw new Error('不支持此图片格式');
-      const bytes = await readFileBounded(imagePath, remaining);
-      remaining -= bytes.length;
+      const bytes = await readRegularFile(imagePath);
       $(img).attr('src', `data:${type};base64,${bytes.toString('base64')}`).removeAttr('srcset');
     } catch (error) {
-      const reason = error instanceof RangeError ? '图片超过预览大小限制'
-        : error.code ? '无法读取' : error.message;
+      const reason = error.code ? '无法读取' : error.message;
       $(img).replaceWith($('<span class="image-unavailable"></span>')
         .text(`[${$(img).attr('alt') || '图片'}：${reason}]`));
     }

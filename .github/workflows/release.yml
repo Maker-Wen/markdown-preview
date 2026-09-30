@@ -1,0 +1,45 @@
+name: Validate release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  validate-and-package:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.3.x'
+          cache: npm
+          cache-dependency-path: |
+            plugins/markdown-preview/package-lock.json
+            plugins/markdown-preview/runtime/renderer/package-lock.json
+      - name: Install plugin dependencies
+        run: |
+          npm ci --prefix plugins/markdown-preview --include=dev --include=optional --ignore-scripts
+          npm ci --prefix plugins/markdown-preview/runtime/renderer --include=optional --ignore-scripts
+      - name: Install browser
+        run: npx --prefix plugins/markdown-preview playwright install --with-deps chromium
+      - name: Validate source
+        run: |
+          npm test --prefix plugins/markdown-preview
+          npm run test:browser --prefix plugins/markdown-preview
+          node --test tests/test-installer.cjs
+          node --test tests/test-release-package.cjs
+          node --test tests/test-remote-installer.cjs
+          git diff --check
+      - name: Build release package
+        run: node scripts/package-release.cjs --version "${GITHUB_REF_NAME#v}"
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-preview-${{ github.ref_name }}
+          path: |
+            dist/markdown-preview-*.tar.gz
+            dist/markdown-preview-*.zip
+            dist/SHA256SUMS

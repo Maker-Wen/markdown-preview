@@ -5,14 +5,14 @@ const path = require('node:path');
 const os = require('node:os');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
-const { readFileBounded } = require('./files.cjs');
+const { readRegularFile } = require('./files.cjs');
 
 (async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'md-viewer-check-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-mcp-test-'));
   const transport = new StdioClientTransport({ command: process.execPath,
     args: ['--no-global-search-paths', path.join(__dirname, 'server.cjs')], stderr: 'pipe',
-    env: { ...process.env, MD_VIEWER_LOG_PATH: path.join(dir, 'removed-debug-directory', 'events.jsonl') } });
-  const client = new Client({ name: 'markdown-viewer-check', version: '1.0.0' });
+    env: { ...process.env } });
+  const client = new Client({ name: 'markdown-preview-mcp-test', version: '1.0.0' });
   try {
     await client.connect(transport);
     const tool = (await client.listTools()).tools[0];
@@ -20,7 +20,7 @@ const { readFileBounded } = require('./files.cjs');
     const ui = await client.readResource({ uri: tool._meta.ui.resourceUri });
     assert.equal(ui.contents[0].mimeType, 'text/html;profile=mcp-app');
     assert.deepEqual(ui.contents[0]._meta.ui.csp, { resourceDomains: ['data:'], connectDomains: [] });
-    assert.match(ui.contents[0].text, /Markdown 增强阅读/);
+    assert.match(ui.contents[0].text, /Markdown Preview/);
     assert.doesNotMatch(ui.contents[0].text, /\/\* BUNDLED_/);
     assert.doesNotMatch(ui.contents[0].text, /url\(fonts\//);
     const docs = path.join(dir, '文档');
@@ -45,6 +45,7 @@ const { readFileBounded } = require('./files.cjs');
     assert.doesNotMatch(a.structuredContent.html, /<script|OUTSIDE_SENTINEL/);
     const { render } = require('./render.cjs');
     const cheerio = require('../runtime/renderer/node_modules/cheerio');
+    assert.equal((await render(file, '')).html.trim(), '');
     const links = cheerio.load((await render(file, [
       '[same](<./中文 空格%23%25.md>)',
       '[parent](../parent.md#section)',
@@ -90,19 +91,29 @@ const { readFileBounded } = require('./files.cjs');
     assert.equal(c.structuredContent.text, '# 文档 B');
     assert.equal((await client.callTool(request)).structuredContent.text, '# 文档 A 已更新');
     assert.equal((await client.callTool({ name: tool.name, arguments: request.arguments })).isError, true);
-    await fs.writeFile(file, Buffer.alloc(1024 * 1024 + 1));
-    assert.equal((await client.callTool(request)).isError, true);
+    const largeImage = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20"/><!--' + 'x'.repeat(5 * 1024 * 1024) + '--></svg>';
+    await fs.writeFile(path.join(docs, 'large.svg'), largeImage);
+    const largeText = '# 大文档\n\n' + ('preview content '.repeat(16) + '\n\n').repeat(4096)
+      + '\n![large](large.svg)\n\n![small](<中文 #1.svg>)\n\n## LARGE_DOCUMENT_END\n';
+    assert.ok(Buffer.byteLength(largeText) > 1024 * 1024);
+    await fs.writeFile(file, largeText);
+    const large = await client.callTool(request);
+    assert.notEqual(large.isError, true);
+    assert.equal(large.structuredContent.text, largeText);
+    assert.equal(large.structuredContent.bytes, Buffer.byteLength(largeText));
+    assert.match(large.structuredContent.html, /LARGE_DOCUMENT_END/);
+    const images = cheerio.load(large.structuredContent.html)('img');
+    assert.equal(images.length, 2);
+    assert.equal(Buffer.from(images.eq(0).attr('src').split(',')[1], 'base64').toString(), largeImage);
+    assert.match(images.eq(1).attr('src'), /^data:image\/svg\+xml;base64,/);
     const secret = path.join(dir, 'not-markdown.txt');
     await fs.writeFile(secret, 'not accessible through this viewer');
     const symlink = path.join(docs, 'linked.md');
     await fs.symlink(secret, symlink);
     assert.equal((await client.callTool({ ...request, arguments: { file: { name: 'linked.md', resourceUri: 'codex-resource://test-link' } }, _meta: { 'openai/resource': { path: symlink } } })).isError, true);
-    const boundary = path.join(dir, 'size-limit.bin');
-    await fs.writeFile(boundary, Buffer.alloc(1024));
-    assert.equal((await readFileBounded(boundary, 1024)).length, 1024);
-    await assert.rejects(readFileBounded(boundary, 1023), RangeError);
-    await assert.rejects(readFileBounded(docs, 1024), /普通文件/);
-    await assert.rejects(readFileBounded(symlink, 1024), { code: 'ELOOP' });
-    console.log('PASS: MCP registration + bundled UI, Markdown/TOC/KaTeX/Mermaid/highlight, local images and links, escaped HTML/import, image boundary, reread/isolation, input and size checks.');
+    assert.equal((await readRegularFile(file)).toString(), largeText);
+    await assert.rejects(readRegularFile(docs), /普通文件/);
+    await assert.rejects(readRegularFile(symlink), { code: 'ELOOP' });
+    console.log('PASS: MCP registration + bundled UI, Markdown/TOC/KaTeX/Mermaid/highlight, local images and links, escaped HTML/import, image boundary, reread/isolation, regular-file checks and documents/images above the former limits.');
   } finally { await client.close(); await fs.rm(dir, { recursive: true, force: true }); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -7,12 +7,12 @@ const { chromium } = require('playwright');
 const { render, viewerHtml } = require('./render.cjs');
 
 (async () => {
-  const file = path.resolve(process.argv[2] || path.join(__dirname, '../tests/reader.md'));
+  const file = path.resolve(process.argv[2] || path.join(__dirname, '../tests/fixtures/markdown-sample.md'));
   const text = await fs.readFile(file, 'utf8');
   const rendered = await render(file, text);
   const output = { name: path.basename(file), resourceUri: 'codex-resource://browser-a', bytes: Buffer.byteLength(text), text, ...rendered };
   const template = await viewerHtml();
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'md-viewer-browser-'));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-browser-test-'));
   const results = [], requests = [], pageErrors = [];
   let browser;
   const bootstrap = value => template.replace('<script>', () => '<script>window.openai=' + JSON.stringify({ toolOutput: value }).replace(/</g, '\\u003c') + ';</script><script>');
@@ -34,7 +34,7 @@ const { render, viewerHtml } = require('./render.cjs');
     await page.setContent(bootstrap(output), { waitUntil: 'load' });
     await check('Mermaid renders as SVG', async () => {
       await page.locator('#content .mermaid svg').waitFor({ timeout: 20000 });
-      assert.match(await page.locator('#content .mermaid').innerText(), /点击 Markdown 文件/);
+      assert.match(await page.locator('#content .mermaid').innerText(), /打开 Markdown 文档/);
       return { svgCount: await page.locator('#content .mermaid svg').count() };
     });
     await check('KaTeX uses loaded embedded fonts', async () => {
@@ -56,16 +56,16 @@ const { render, viewerHtml } = require('./render.cjs');
     });
     await page.screenshot({ path: path.join(directory, 'desktop-top.png') });
     await check('TOC navigates to final section', async () => {
-      const link = page.locator('#toc a').filter({ hasText: '最后一节' });
+      const link = page.locator('#toc a').filter({ hasText: '后续阅读' });
       await link.click();
       await page.waitForFunction(() => {
-        const heading = [...document.querySelectorAll('#content h2')].find(node => node.textContent.includes('最后一节'));
+        const heading = [...document.querySelectorAll('#content h2')].find(node => node.textContent.includes('后续阅读'));
         const rect = heading.getBoundingClientRect(), bounds = document.getElementById('main').getBoundingClientRect();
         return rect.top >= bounds.top && rect.bottom <= bounds.bottom;
       });
       const info = await page.evaluate(() => {
         const main = document.getElementById('main');
-        const heading = [...document.querySelectorAll('#content h2')].find(node => node.textContent.includes('最后一节'));
+        const heading = [...document.querySelectorAll('#content h2')].find(node => node.textContent.includes('后续阅读'));
         const rect = heading.getBoundingClientRect(), bounds = main.getBoundingClientRect();
         return { scroll: main.scrollTop, top: rect.top, bottom: rect.bottom, mainTop: bounds.top, mainBottom: bounds.bottom };
       });
@@ -115,7 +115,7 @@ const { render, viewerHtml } = require('./render.cjs');
       await event(page, { toolOutput: second, toolResponseMetadata: {} });
       assert.equal(await page.locator('#name').textContent(), second.name);
       assert.match(await page.locator('#content').innerText(), /UNIQUE_BROWSER_DOCUMENT_B/);
-      assert.doesNotMatch(await page.locator('#content').innerText(), /增强预览测试/);
+      assert.doesNotMatch(await page.locator('#content').innerText(), /Markdown 功能示例/);
       assert.equal(await page.locator('#main').evaluate(node => node.scrollTop), 0);
       assert.equal(await page.locator('#source').textContent(), secondText);
       assert.match(await page.locator('#toc').innerText(), /Final B/);
@@ -189,6 +189,39 @@ const { render, viewerHtml } = require('./render.cjs');
       assert.equal(await page.locator('#content script, #content img[onerror]').count(), 0);
       assert.match(await page.locator('main > div#detail').innerText(), /字节/);
     });
+    await check('Same-document updates and theme changes preserve reading position', async () => {
+      const source = '# Reading position\n\n```mermaid\nflowchart LR\n A-->B\n```\n\n' +
+        Array.from({ length: 50 }, (_, i) => 'Paragraph ' + i + '\n\n').join('');
+      const readingOutput = { name: 'reading-position.md', resourceUri: 'codex-resource://reading-position', text: source,
+        bytes: Buffer.byteLength(source), ...await render(file, source) };
+      await event(page, { toolResponseMetadata: {}, toolOutput: readingOutput });
+      await page.locator('#content .mermaid svg').waitFor();
+      await page.locator('#main').evaluate(node => node.scrollTo({ top: 101, behavior: 'instant' }));
+      const updatedText = source + 'UPDATED_DOCUMENT_END\n';
+      await event(page, { toolResponseMetadata: {}, toolOutput: { ...readingOutput, text: updatedText,
+        bytes: Buffer.byteLength(updatedText), ...await render(file, updatedText) } });
+      await page.locator('#content .mermaid svg').waitFor();
+      assert.match(await page.locator('#content').innerText(), /UPDATED_DOCUMENT_END/);
+      await page.waitForFunction(() => Math.abs(document.getElementById('main').scrollTop - 101) < 2);
+      await page.locator('#theme').selectOption('dark');
+      await page.locator('#content .mermaid svg').waitFor();
+      await page.waitForFunction(() => Math.abs(document.getElementById('main').scrollTop - 101) < 2);
+      return { contentUpdated: true, refreshKeepsScroll: true, themeKeepsScroll: true };
+    });
+    await check('Empty documents preserve their exact source', async () => {
+      for (const empty of ['', '\n', '\r\n']) {
+        await event(page, { toolResponseMetadata: {}, toolOutput: { name: 'empty.md', resourceUri: 'codex-resource://empty-' + empty.length,
+          text: empty, bytes: Buffer.byteLength(empty), ...await render(file, empty) } });
+        assert.equal(await page.locator('#error').isVisible(), false);
+        assert.equal(await page.locator('#content').innerText(), '');
+        await page.locator('#toggle-source').click();
+        assert.equal(await page.locator('#source').textContent(), empty);
+        await page.locator('#toggle-source').click();
+      }
+      await event(page, { toolResponseMetadata: {}, toolOutput: output });
+      await page.locator('#content .mermaid svg').waitFor();
+      return { emptyDocuments: 3 };
+    });
     await check('Narrow viewport remains usable', async () => {
       const narrow = await context.newPage();
       narrow.on('pageerror', error => pageErrors.push(error.message));
@@ -199,12 +232,12 @@ const { render, viewerHtml } = require('./render.cjs');
       let size = await narrow.evaluate(() => ({ width: innerWidth, documentWidth: document.documentElement.scrollWidth, mainHeight: document.getElementById('main').clientHeight }));
       assert.ok(size.documentWidth <= size.width); assert.ok(size.mainHeight > 500);
       await narrow.locator('#toggle-toc').click(); assert.equal(await narrow.locator('aside').isVisible(), true);
-      await narrow.locator('#toc a').filter({ hasText: '最后一节' }).click();
+      await narrow.locator('#toc a').filter({ hasText: '后续阅读' }).click();
       await narrow.waitForFunction(() => document.getElementById('main').scrollTop > 0);
       await narrow.screenshot({ path: path.join(directory, 'narrow.png') });
       await narrow.close(); return size;
     });
-    await check('Partitioned source preserves newlines and exact selected copying', async () => {
+    await check('Source preserves newlines and exact selected copying', async () => {
       const samples = ['', '\n', 'a\n\n\nb', 'a\r\n\r\nb\r\n', 'a\rb', '中文🦊\n\n尾部\n', '单行'.repeat(1000)];
       for (const sourceText of samples) {
         await event(page, { toolResponseMetadata: {}, toolOutput: { name: 'source.md', resourceUri: 'codex-resource://source-copy',

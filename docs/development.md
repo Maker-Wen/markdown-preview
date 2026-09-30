@@ -105,11 +105,11 @@ node scripts/install.cjs     # 跨平台入口
 远程 Release 安装不要求手动 clone。`install-remote.sh` 和 `install-remote.ps1` 默认使用正式仓库和 `v1.0.0`，下载 `markdown-preview-v1.0.0.tar.gz` 与 `SHA256SUMS`，校验通过后再调用本地安装器。可使用以下环境变量覆盖默认值：
 
 ```sh
-MARKDOWN_PREVIEW_REPOSITORY=<owner>/<repository>
+MARKDOWN_PREVIEW_REPOSITORY=Maker-Wen/markdown-preview
 MARKDOWN_PREVIEW_VERSION=v1.0.0
 ```
 
-远程脚本的 GitHub 地址在仓库正式创建后写入发布说明；本地开发阶段不应把占位 URL 当作可用下载地址。
+远程脚本在 GitHub Release 发布后即可使用；发布前不要把尚未上传的 Release 资产当作可用下载地址。
 
 安装版本格式为 `<base>+codex.<hash>`。摘要由可分发源码、运行平台与架构、Node.js 路径及安装器内容生成；正式发布时基础版本固定为 `1.0.0`，部署摘要仍由安装环境生成。
 

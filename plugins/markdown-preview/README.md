@@ -9,16 +9,16 @@ Markdown Preview 是 Codex 的 Markdown 文件查看器，支持 `.md` 和 `.mar
 正式版本提供无需手动 clone 的远程入口。仓库发布后，使用对应版本的脚本：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.ps1 | iex
+irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.ps1 | iex
 ```
 
-远程脚本默认下载 GitHub Release 的 `markdown-preview-v1.0.0.tar.gz` 和 `SHA256SUMS`，校验后执行安装。可用 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖默认源和版本。正式 GitHub 地址创建前，上述地址只作为占位示例。
+远程脚本默认下载 GitHub Release 的 `markdown-preview-v1.0.0.tar.gz` 和 `SHA256SUMS`，校验后执行安装。可用 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖默认源和版本。
 
 已经取得源码时，在仓库根目录执行：
 

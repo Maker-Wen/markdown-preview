@@ -43,7 +43,7 @@
   function initialize() {
     initialized ??= request('ui/initialize', {
       protocolVersion,
-      appInfo: { name: 'markdown-file-viewer', version: '0.1.0' },
+      appInfo: { name: 'markdown-preview', version: '1.0.0' },
       appCapabilities: {},
     }).then(result => {
       if (result.protocolVersion !== protocolVersion) {

@@ -20,16 +20,16 @@
 macOS / Linux：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/<owner>/<repository>/v1.0.0/install-remote.ps1 | iex
+irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.ps1 | iex
 ```
 
-远程脚本默认下载 GitHub Release 的 `markdown-preview-v1.0.0.tar.gz`，并使用同一 Release 中的 `SHA256SUMS` 校验。仓库地址和版本可以通过 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖。上面的地址保留占位符，待 GitHub 仓库正式创建后替换为实际地址。
+远程脚本默认下载 GitHub Release 的 `markdown-preview-v1.0.0.tar.gz`，并使用同一 Release 中的 `SHA256SUMS` 校验。仓库地址和版本可以通过 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖。
 
 已经取得源码时，可在仓库根目录执行本地安装：
 
