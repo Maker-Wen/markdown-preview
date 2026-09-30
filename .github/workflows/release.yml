@@ -31,7 +31,7 @@ jobs:
           npm run test:browser --prefix plugins/markdown-preview
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
-          node --test --test-concurrency=1 tests/test-remote-installer.cjs
+          node tests/test-remote-installer.cjs
           git diff --check
       - name: Build release package
         run: node scripts/package-release.cjs --version "${GITHUB_REF_NAME#v}"

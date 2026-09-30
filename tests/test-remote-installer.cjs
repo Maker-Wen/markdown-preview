@@ -4,11 +4,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const test = require('node:test');
-
 const ROOT = path.resolve(__dirname, '..');
 
-test('remote installer wrappers use the pinned release and forward local options', async () => {
+async function main() {
   const shell = await fs.readFile(path.join(ROOT, 'install-remote.sh'), 'utf8');
   const powershell = await fs.readFile(path.join(ROOT, 'install-remote.ps1'), 'utf8');
   assert.match(shell, /Maker-Wen\/markdown-preview/);
@@ -18,8 +16,13 @@ test('remote installer wrappers use the pinned release and forward local options
   assert.match(powershell, /Maker-Wen\/markdown-preview/);
   assert.match(powershell, /SHA256SUMS/);
   assert.match(powershell, /install\.ps1/);
-});
+  console.log('PASS: remote installer wrappers use the pinned release and forward local options');
 
-test('remote shell installer passes syntax check without network access', () => {
   execFileSync('sh', ['-n', path.join(ROOT, 'install-remote.sh')]);
+  console.log('PASS: remote shell installer passes syntax check without network access');
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
 });
