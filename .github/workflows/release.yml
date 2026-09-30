@@ -30,7 +30,7 @@ jobs:
           npm test --prefix plugins/markdown-preview
           npm run test:browser --prefix plugins/markdown-preview
           node --test tests/test-installer.cjs
-          node --test --test-concurrency=1 tests/test-release-package.cjs
+          node tests/test-release-package.cjs
           node --test --test-concurrency=1 tests/test-remote-installer.cjs
           git diff --check
       - name: Build release package
