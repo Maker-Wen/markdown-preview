@@ -7,6 +7,6 @@
     "node": ">=20.3.0"
   },
   "dependencies": {
-    "crossnote": "0.9.39"
+    "crossnote": "0.9.41"
   }
 }
