@@ -4,7 +4,7 @@
 
 ## 环境准备
 
-- Node.js 20.3 或更新版本。
+- Node.js 22.12.0 或更新版本。
 - npm，以及锁文件声明的服务和渲染依赖。
 - Codex CLI，且支持 `plugin` 命令；仅运行单元和浏览器测试时不需要正在运行的 Codex。
 - 浏览器测试需要 Playwright 支持的 Chromium；也可以指定本机 Chrome/Chromium。
@@ -13,10 +13,12 @@
 
 ```sh
 cd plugins/markdown-preview
-npm run setup
+NPM_CONFIG_ENGINE_STRICT=true npm run setup
 ```
 
 `setup` 根据两份锁文件执行 `npm ci`，安装开发依赖和可选平台依赖，并禁用依赖安装脚本。`node_modules/` 不纳入版本控制。渲染依赖位于 `runtime/renderer/`，插件运行时不依赖仓库外部的模块缓存。
+
+`NPM_CONFIG_ENGINE_STRICT=true` 会让不满足依赖 Node.js 要求的安装直接失败。验证最低支持版本时，先确认 `node --version` 为 `v22.12.0`，再运行上述命令。PowerShell 使用 `$env:NPM_CONFIG_ENGINE_STRICT = 'true'` 后再执行 `npm run setup`。
 
 ## 代码结构
 
@@ -63,7 +65,7 @@ PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium npm run test:browser
 从仓库根目录运行安装器回归测试：
 
 ```sh
-node --test tests/test-installer.cjs
+node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
 还应在提交前运行脚本语法检查和差异检查：
@@ -86,7 +88,7 @@ git diff --check
 node scripts/install.cjs     # 跨平台入口
 ```
 
-安装需要 Node.js 20.3 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。CLI 优先从 `PATH` 查找，macOS 下也尝试应用内附带的 CLI；使用 `--repo` 时还需要 Git。
+安装需要 Node.js 22.12.0 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。CLI 优先从 `PATH` 查找，macOS 下也尝试应用内附带的 CLI；使用 `--repo` 时还需要 Git。
 
 安装器在临时区域复制可分发源码、安装生产依赖，并在准备目录中执行独立 MCP 校验，然后注册 `markdown-preview-marketplace` 市场并安装其中的 `markdown-preview` 插件。安装后的 `mcp.json` 使用运行安装器的 Node.js 绝对路径。默认安装目录为用户主目录下的 `.local/share/markdown-preview/marketplace`。
 
@@ -158,13 +160,15 @@ npm --prefix plugins/markdown-preview/runtime/renderer install --save-exact --ig
 
 此命令更新 renderer 的 `package.json` 和 `package-lock.json`。检查两者差异及传递依赖变化；Crossnote 升级本身不要求改动服务层的锁文件，也不应混入无关依赖升级。
 
+如果传递依赖提高最低 Node.js 版本，应同步两层包与锁文件的根 `engines.node`、安装入口、文档和 CI。
+
 依赖变更后，从仓库根目录准备测试环境并运行现有检查：
 
 ```sh
-npm run setup --prefix plugins/markdown-preview
+NPM_CONFIG_ENGINE_STRICT=true npm run setup --prefix plugins/markdown-preview
 npm test --prefix plugins/markdown-preview
 npm run test:browser --prefix plugins/markdown-preview
-node --test tests/test-installer.cjs
+node --test tests/test-node-version.cjs tests/test-installer.cjs
 node tests/test-release-package.cjs
 node tests/test-remote-installer.cjs
 git diff --check
@@ -183,6 +187,6 @@ npm audit --prefix plugins/markdown-preview/runtime/renderer --omit=dev
 
 仓库已配置[Dependabot](../.github/dependabot.yml)，每周检查 `plugins/markdown-preview/runtime/renderer` 中 Crossnote 的更新。直接依赖跟踪范围仅为 Crossnote；升级 PR 更新其精确版本声明和 renderer 锁文件，传递依赖的变化也需一起审查。上面的手动流程可用于维护者主动选择目标版本或处理升级失败。
 
-[验证工作流](../.github/workflows/validate.yml) 自动对 PR 和 `main` 分支推送运行现有 MCP、浏览器、安装器、发布包与远程安装器检查。检查失败时先定位依赖变化带来的影响；检查通过后，仍需维护者阅读差异并完成上述真实 Codex 复核，再决定合并和发版。组件检查不代表 Windows 或用户设备已经验证。
+[验证工作流](../.github/workflows/validate.yml) 自动对 PR 和 `main` 分支推送，在 Node.js 22.12.0 和 24.x 上启用严格 engine 校验，运行现有 MCP、浏览器、安装器版本边界、安装器、发布包与远程安装器检查。检查失败时先定位依赖变化带来的影响；检查通过后，仍需维护者阅读差异并完成上述真实 Codex 复核，再决定合并和发版。组件检查不代表 Windows 或用户设备已经验证。
 
 当前流程不会自动合并 PR、发布插件或更新用户端安装。用户取得已发布的新版本仍需运行对应安装命令；依赖升级和漏洞处置不应隐含在版本号修改中。

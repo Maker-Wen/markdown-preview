@@ -175,11 +175,11 @@ const { StdioClientTransport } = require('./node_modules/@modelcontextprotocol/s
 async function main(argv = process.argv.slice(2)) {
   const opts = options(argv);
   if (opts.help) {
-    console.log(`Markdown Preview 安装器\n\n用法：node scripts/install.cjs [选项]\n  --source <目录>       本地仓库，默认为安装器所在仓库\n  --repo <Git URL>      从远程仓库下载源码\n  --ref <分支或标签>    指定远程版本，默认使用仓库默认分支\n  --install-dir <路径>  安装市场的绝对路径\n  --codex <路径>        指定 Codex CLI\n  --dry-run            只显示计划，不下载或安装\n  --help               显示帮助\n\n需要 Node.js >=20.3、npm、Codex CLI；远程来源另需 Git。\n重跑同一命令可更新。安装完成后从文件打开菜单选择 Markdown Preview。`);
+    console.log(`Markdown Preview 安装器\n\n用法：node scripts/install.cjs [选项]\n  --source <目录>       本地仓库，默认为安装器所在仓库\n  --repo <Git URL>      从远程仓库下载源码\n  --ref <分支或标签>    指定远程版本，默认使用仓库默认分支\n  --install-dir <路径>  安装市场的绝对路径\n  --codex <路径>        指定 Codex CLI\n  --dry-run            只显示计划，不下载或安装\n  --help               显示帮助\n\n需要 Node.js >=22.12.0、npm、Codex CLI；远程来源另需 Git。\n重跑同一命令可更新。安装完成后从文件打开菜单选择 Markdown Preview。`);
     return;
   }
   const [major, minor] = process.versions.node.split('.').map(Number);
-  if (major < 20 || (major === 20 && minor < 3)) throw new Error('需要 Node.js 20.3 或更新版本。');
+  if (major < 22 || (major === 22 && minor < 12)) throw new Error('需要 Node.js 22.12.0 或更新版本。');
   const destination = path.resolve(opts['install-dir'] || path.join(os.homedir(), '.local/share/markdown-preview/marketplace'));
   const source = path.resolve(opts.source || ROOT);
   const cmd = await commands(opts);

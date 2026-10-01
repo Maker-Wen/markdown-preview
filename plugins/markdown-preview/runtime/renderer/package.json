@@ -4,7 +4,7 @@
   "private": true,
   "description": "Pinned Crossnote runtime for Markdown Preview",
   "engines": {
-    "node": ">=20.3.0"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "crossnote": "0.9.41"
