@@ -1,0 +1,11 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /plugins/markdown-preview/runtime/renderer
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: crossnote
+    versioning-strategy: increase
+    open-pull-requests-limit: 1

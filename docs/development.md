@@ -141,11 +141,48 @@ MARKDOWN_PREVIEW_VERSION=v1.0.0
 
 ## 依赖维护
 
-服务与渲染器分别维护锁文件。升级时应同时检查运行行为和依赖审计结果：
+Crossnote 在 `plugins/markdown-preview/runtime/renderer/package.json` 中使用精确版本声明，实际依赖由该目录的 `package-lock.json` 固定。服务层的 `plugins/markdown-preview/package-lock.json` 独立维护。上游发布新版不会自动替换已安装依赖，`npm ci` 也只会按现有锁文件重建依赖。
+
+升级时，从仓库根目录查询 npm 已发布的版本，再阅读上游的发布说明和目标版本之间的变更，选择要验证的确切版本：
 
 ```sh
-npm audit
-npm --prefix runtime/renderer audit
+npm view crossnote version
+npm view crossnote versions --json
 ```
 
-审计结果应记录在发布审查中；依赖升级和漏洞处置不应隐含在版本号修改中。
+下面仅以 `0.9.41` 展示受控升级命令；执行前应核对当时的发布内容和目标版本：
+
+```sh
+npm --prefix plugins/markdown-preview/runtime/renderer install --save-exact --ignore-scripts crossnote@0.9.41
+```
+
+此命令更新 renderer 的 `package.json` 和 `package-lock.json`。检查两者差异及传递依赖变化；Crossnote 升级本身不要求改动服务层的锁文件，也不应混入无关依赖升级。
+
+依赖变更后，从仓库根目录准备测试环境并运行现有检查：
+
+```sh
+npm run setup --prefix plugins/markdown-preview
+npm test --prefix plugins/markdown-preview
+npm run test:browser --prefix plugins/markdown-preview
+node --test tests/test-installer.cjs
+node tests/test-release-package.cjs
+node tests/test-remote-installer.cjs
+git diff --check
+```
+
+浏览器检查需要按前文准备 Chromium。还应分别审计服务层和 renderer 的生产依赖，并将审计结果记录在发布审查中：
+
+```sh
+npm audit --prefix plugins/markdown-preview --omit=dev
+npm audit --prefix plugins/markdown-preview/runtime/renderer --omit=dev
+```
+
+复核本插件自有 parser 规则、上游生成的 HTML、KaTeX 字体、Mermaid 脚本和样式文件路径，以及本地图片与链接处理。上述组件测试通过后，还需在真实 Codex 中检查文件查看器选择、普通 Markdown 点击和渲染交互；它们不能替代宿主验证，也不代表 Windows 已验证。
+
+插件版本与 Crossnote 版本独立。升级经验证后，按[发布指南](releasing.md)发布新的插件版本：同步两份插件清单、相关包版本元数据、MCP 服务与界面上报版本、打包器默认版本、更新日志、远程安装脚本的默认 Release 版本，以及 README 中指向新标签的安装命令，再创建对应 Git 标签和 Release 资产。用户重跑**新插件版本**的安装命令后才能取得新依赖；重跑仍指向 `v1.0.0` 的旧命令只会重装旧版本。
+
+仓库已配置[Dependabot](../.github/dependabot.yml)，每周检查 `plugins/markdown-preview/runtime/renderer` 中 Crossnote 的更新。直接依赖跟踪范围仅为 Crossnote；升级 PR 更新其精确版本声明和 renderer 锁文件，传递依赖的变化也需一起审查。上面的手动流程可用于维护者主动选择目标版本或处理升级失败。
+
+[验证工作流](../.github/workflows/validate.yml) 自动对 PR 和 `main` 分支推送运行现有 MCP、浏览器、安装器、发布包与远程安装器检查。检查失败时先定位依赖变化带来的影响；检查通过后，仍需维护者阅读差异并完成上述真实 Codex 复核，再决定合并和发版。组件检查不代表 Windows 或用户设备已经验证。
+
+当前流程不会自动合并 PR、发布插件或更新用户端安装。用户取得已发布的新版本仍需运行对应安装命令；依赖升级和漏洞处置不应隐含在版本号修改中。

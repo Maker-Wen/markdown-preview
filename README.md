@@ -2,6 +2,8 @@
 
 **Markdown Preview 1.0.0** 是面向 Codex 的 Markdown 文件查看器。它在文件标签页中提供目录导航、代码高亮、KaTeX 公式、Mermaid 图表、本地图片和源码视图，支持 `.md` 与 `.markdown` 文件。
 
+Markdown 解析与基础渲染基于 [Crossnote](https://github.com/shd101wyy/crossnote)。本项目提供 Codex 文件查看器接入、本地资源处理、安全边界和阅读界面。
+
 ## 功能
 
 - 标题目录、表格、任务列表和代码语法高亮。
@@ -45,7 +47,17 @@ node scripts/install.cjs     # 跨平台入口
 node scripts/install.cjs --repo <Git URL> --ref v1.0.0
 ```
 
-安装器会准备生产依赖、运行 MCP 自检、注册自有市场 `markdown-preview-marketplace`，并安装 `markdown-preview`。重复执行可更新安装；默认安装目录为用户主目录下的 `.local/share/markdown-preview/marketplace`。
+安装器会准备生产依赖、运行 MCP 自检、注册自有市场 `markdown-preview-marketplace`，并安装 `markdown-preview`。重复执行本地安装入口可更新当前源码的部署；默认安装目录为用户主目录下的 `.local/share/markdown-preview/marketplace`。
+
+## 更新
+
+Crossnote 与 Markdown Preview 分别发布版本。插件通过依赖声明和锁文件固定 Crossnote 版本；上游发布新版本后，需要验证兼容性，再随新的插件版本分发。已安装的插件不会自动跟随上游更新。
+
+仓库的 [Dependabot 配置](.github/dependabot.yml) 每周检查 renderer 的 Crossnote 更新，更新精确依赖声明和对应锁文件并提出 PR。[验证工作流](.github/workflows/validate.yml) 自动运行现有 MCP、浏览器、安装器及发布包检查。维护者仍负责审查、合并和发版；当前流程不会自动合并 PR、发布插件或更新用户端安装。
+
+使用远程安装入口更新时，请使用目标插件版本对应的脚本地址与安装说明；固定的 `v1.0.0` 入口仍会安装 `v1.0.0`。使用本地源码时，先更新源码，再重新执行本地安装入口。打开新的 Codex 聊天以加载更新后的插件。
+
+维护者升级 Crossnote 的具体步骤见[开发指南中的依赖维护](docs/development.md#依赖维护)。
 
 ## 使用
 
@@ -100,3 +112,9 @@ plugins/markdown-preview/    可安装的插件包
 | [发布指南](docs/releasing.md) | v1.0.0 标签、Release 资产和远程安装入口 |
 | [更新日志](CHANGELOG.md) | 版本变更记录 |
 | [Markdown 示例](plugins/markdown-preview/tests/fixtures/markdown-sample.md) | 渲染功能与浏览器测试样例 |
+
+## 致谢
+
+感谢 [Crossnote](https://github.com/shd101wyy/crossnote) 作者 Yiyi Wang（[shd101wyy](https://github.com/shd101wyy)）及所有贡献者。本插件复用 Crossnote 的 Markdown 引擎和部分渲染资源，相关开源许可见 [Crossnote LICENSE](https://github.com/shd101wyy/crossnote/blob/develop/LICENSE.md)。
+
+同时感谢 [KaTeX](https://github.com/KaTeX/KaTeX)、[Mermaid](https://github.com/mermaid-js/mermaid) 和 [Prism](https://github.com/PrismJS/prism) 等项目提供公式、图表和代码高亮能力。
