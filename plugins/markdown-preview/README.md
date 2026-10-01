@@ -6,7 +6,7 @@ Markdown 解析与基础渲染基于 [Crossnote](https://github.com/shd101wyy/cr
 
 ## 安装
 
-需要 Node.js 20.3 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。
+需要 Node.js 22.12.0 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。
 
 正式版本提供无需手动 clone 的远程入口。仓库发布后，使用对应版本的脚本：
 
@@ -58,10 +58,10 @@ Codex 26.928.20755 的宿主路由仍决定首次普通点击的查看器。本�
 
 ## 开发
 
-以下说明面向完整源码仓库；安装器生成的插件包不包含测试脚本和样例。需要 Node.js 20.3 或更新版本，在源码仓库的插件目录执行：
+以下说明面向完整源码仓库；安装器生成的插件包不包含测试脚本和样例。需要 Node.js 22.12.0 或更新版本，在源码仓库的插件目录执行：
 
 ```sh
-npm run setup
+NPM_CONFIG_ENGINE_STRICT=true npm run setup
 npm test
 npm run test:browser
 ```
@@ -69,7 +69,7 @@ npm run test:browser
 浏览器测试使用 Playwright 启动独立无头浏览器，不连接 Codex。固定样例位于 `tests/fixtures/markdown-sample.md`。安装器回归测试在仓库根目录执行：
 
 ```sh
-node --test tests/test-installer.cjs
+node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
 更多说明见仓库根目录的[开发指南](../../docs/development.md)、[兼容性说明](../../docs/compatibility.md)和[发布指南](../../docs/releasing.md)。

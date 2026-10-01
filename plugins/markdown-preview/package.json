@@ -9,7 +9,7 @@
     "setup": "npm ci --include=dev --include=optional --ignore-scripts && npm --prefix runtime/renderer ci --include=optional --ignore-scripts"
   },
   "engines": {
-    "node": ">=20.3.0"
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

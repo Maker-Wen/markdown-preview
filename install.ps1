@@ -3,13 +3,13 @@
 $node = Get-Command node -CommandType Application -ErrorAction SilentlyContinue |
     Select-Object -First 1
 if (-not $node) {
-    [Console]::Error.WriteLine('安装需要 Node.js 20.3.0 或更新版本，请先从 https://nodejs.org/ 安装 Node.js。')
+    [Console]::Error.WriteLine('安装需要 Node.js 22.12.0 或更新版本，请先从 https://nodejs.org/ 安装 Node.js。')
     exit 1
 }
 
-& $node.Path -e 'const [major, minor] = process.versions.node.split(/\./).map(Number); process.exit(major > 20 || (major === 20 && minor >= 3) ? 0 : 1)'
+& $node.Path -e 'const [major, minor] = process.versions.node.split(/\./).map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'
 if ($LASTEXITCODE -ne 0) {
-    [Console]::Error.WriteLine('安装需要 Node.js 20.3.0 或更新版本，请从 https://nodejs.org/ 更新 Node.js。')
+    [Console]::Error.WriteLine('安装需要 Node.js 22.12.0 或更新版本，请从 https://nodejs.org/ 更新 Node.js。')
     exit 1
 }
 

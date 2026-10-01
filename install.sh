@@ -2,12 +2,12 @@
 set -eu
 
 if ! command -v node >/dev/null 2>&1; then
-  printf '%s\n' '安装需要 Node.js 20.3.0 或更新版本，请先从 https://nodejs.org/ 安装 Node.js。' >&2
+  printf '%s\n' '安装需要 Node.js 22.12.0 或更新版本，请先从 https://nodejs.org/ 安装 Node.js。' >&2
   exit 1
 fi
 
-if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 20 || (major === 20 && minor >= 3) ? 0 : 1)'; then
-  printf '%s\n' '安装需要 Node.js 20.3.0 或更新版本，请从 https://nodejs.org/ 更新 Node.js。' >&2
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'; then
+  printf '%s\n' '安装需要 Node.js 22.12.0 或更新版本，请从 https://nodejs.org/ 更新 Node.js。' >&2
   exit 1
 fi
 

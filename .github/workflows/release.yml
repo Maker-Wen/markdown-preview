@@ -10,11 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      NPM_CONFIG_ENGINE_STRICT: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20.3.x'
+          node-version: '22.12.0'
           cache: npm
           cache-dependency-path: |
             plugins/markdown-preview/package-lock.json
@@ -29,6 +31,7 @@ jobs:
         run: |
           npm test --prefix plugins/markdown-preview
           npm run test:browser --prefix plugins/markdown-preview
+          node --test tests/test-node-version.cjs
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
           node tests/test-remote-installer.cjs

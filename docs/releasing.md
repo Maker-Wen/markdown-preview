@@ -21,11 +21,11 @@
 
 ```sh
 cd plugins/markdown-preview
-npm run setup
+NPM_CONFIG_ENGINE_STRICT=true npm run setup
 npm test
 npm run test:browser
 cd ../..
-node --test tests/test-installer.cjs
+node --test tests/test-node-version.cjs tests/test-installer.cjs
 node --check scripts/install.cjs
 node --check tests/test-installer.cjs
 git diff --check
@@ -91,7 +91,7 @@ MARKDOWN_PREVIEW_VERSION=v1.0.0 \
   sh install-remote.sh
 ```
 
-远程脚本至少应验证 Node.js 20.3、归档摘要、目标目录和安装失败后的清理；它不应修改 Codex 安装包或启动方式。
+远程脚本至少应验证 Node.js 22.12.0、归档摘要、目标目录和安装失败后的清理；它不应修改 Codex 安装包或启动方式。
 
 ## 发布后验证
 

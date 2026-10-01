@@ -15,7 +15,7 @@ Markdown 解析与基础渲染基于 [Crossnote](https://github.com/shd101wyy/cr
 
 ## 安装
 
-需要 Node.js 20.3 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。
+需要 Node.js 22.12.0 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。
 
 正式版本提供不需要手动 clone 的远程安装入口。仓库发布后，使用对应版本的安装脚本：
 
@@ -71,7 +71,7 @@ Codex 仍由宿主决定文件查看器。首次没有首选查看器时，普�
 
 ```sh
 cd plugins/markdown-preview
-npm run setup
+NPM_CONFIG_ENGINE_STRICT=true npm run setup
 npm test
 npm run test:browser
 ```
@@ -79,7 +79,7 @@ npm run test:browser
 安装器回归测试：
 
 ```sh
-node --test tests/test-installer.cjs
+node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
 开发、测试和发布流程见[开发指南](docs/development.md)与[发布指南](docs/releasing.md)。
