@@ -1,0 +1,13 @@
+{
+  "name": "markdown-preview",
+  "version": "1.0.0+marketplace.426e39632880453a",
+  "private": true,
+  "description": "Enhanced Markdown preview for Codex",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  }
+}

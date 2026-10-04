@@ -1,0 +1,10 @@
+{
+  "builder": "markdown-preview-marketplace-builder",
+  "format": 1,
+  "root": ".",
+  "sourceVersion": "1.0.0",
+  "baseVersion": "1.0.0",
+  "contentHash": "426e39632880453a47f9c809ca0e68a7c74de39cd270d49b65d3c5e40257082e",
+  "version": "1.0.0+marketplace.426e39632880453a",
+  "sourceCommit": "00bc7471761a62672b901d0b5e96c7738826dbba"
+}

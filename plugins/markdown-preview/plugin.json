@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "markdown-preview",
+  "version": "1.0.0+marketplace.426e39632880453a",
+  "description": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。"
+}
