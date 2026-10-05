@@ -49,7 +49,7 @@ async function validateSource(source) {
 async function publish(opts, env = process.env) {
   const marker = await validateSource(opts.source);
   if (!opts.publish) {
-    console.log(`待发布市场：${opts.source}\n版本：${marker.version}\n目标：${opts.repo}（${opts.ref}）\n仅显示计划。加 --publish 才会创建提交并推送分发分支。`);
+    console.log(`市场：${opts.source}\n版本：${marker.version}\n目标：${opts.repo}（${opts.ref}）\n使用 --publish 发布。`);
     return;
   }
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-marketplace-publish-'));
@@ -87,7 +87,7 @@ async function publish(opts, env = process.env) {
 async function main(argv = process.argv.slice(2)) {
   const opts = options(argv);
   if (opts.help) {
-    console.log('Markdown Preview 市场发布器\n\n用法：node scripts/publish-marketplace.cjs [--source 目录] [--repo Git地址] [--ref 分支] [--publish]\n默认只显示计划；--publish 使用临时仓库推送 codex/marketplace，不修改开发工作区。');
+    console.log('Markdown Preview 市场发布器\n\n用法：node scripts/publish-marketplace.cjs [--source 目录] [--repo Git地址] [--ref 分支] [--publish]\n默认预览发布计划，加 --publish 推送。默认分支为 codex/marketplace。');
     return;
   }
   await publish(opts);
