@@ -93,7 +93,7 @@ jobs:
         run: |
           ./install-remote.ps1 --help
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./install-remote.ps1 --dry-run --install-dir "${{ runner.temp }}/markdown-preview-remote-dry-run"
+          ./install-remote.ps1 --dry-run --install-dir "${{ runner.temp }}/markdown-preview-remote-dry-run" --codex "${{ runner.temp }}/markdown-preview-codex/node_modules/@openai/codex/bin/codex.js"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install and run the shared npm installer package
         run: npm run test:npx-package
