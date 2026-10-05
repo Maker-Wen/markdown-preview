@@ -68,7 +68,7 @@ PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium npm run test:browser
 node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
-独立 `npx` 安装器与可直接安装的 Codex 市场另需根目录的锁定依赖。构建、分发测试及发布说明见[安装渠道与分发](distribution.md)。三平台 CI 使用同一份市场归档检查安装后的插件缓存，并从同一份 npm 安装包检查实际入口；配置 CI 不代表已取得各平台运行结果。
+市场归档打包另需根目录的锁定开发依赖。构建、分发测试及发布说明见[安装渠道与分发](distribution.md)。三平台 CI 使用同一份市场归档和摘要检查安装后的插件缓存；配置 CI 不代表已取得各平台运行结果。
 
 还应在提交前运行脚本语法检查和差异检查：
 

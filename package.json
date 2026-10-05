@@ -1,27 +1,17 @@
 {
-  "name": "@maker-wen/markdown-preview-installer",
+  "name": "markdown-preview-build-tools",
   "version": "1.0.0",
   "private": true,
-  "description": "Install the latest Markdown Preview release for Codex",
+  "description": "Private build tools for Markdown Preview marketplace distributions",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Maker-Wen/markdown-preview.git"
   },
-  "bin": {
-    "markdown-preview-installer": "bin/install.cjs"
-  },
-  "scripts": {
-    "test:npx-package": "node --test tests/test-npx-package.cjs"
-  },
-  "files": [
-    "bin",
-    "lib"
-  ],
   "engines": {
     "node": ">=22.12.0"
   },
-  "dependencies": {
+  "devDependencies": {
     "tar": "7.5.22"
   }
 }
