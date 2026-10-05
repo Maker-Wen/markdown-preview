@@ -34,6 +34,6 @@ codex plugin marketplace remove markdown-preview-marketplace
 
 ## 分发信息
 
-版本：`1.0.0+marketplace.426e39632880453a`。源码提交：`00bc7471761a62672b901d0b5e96c7738826dbba`。
+版本：`1.0.0+marketplace.00ab9554058d87ec`。源码提交：`d63c372a3136a2caec716e8af86d2c03b1bbb985`。
 
-[源码与开发文档](https://github.com/Maker-Wen/markdown-preview/tree/00bc7471761a62672b901d0b5e96c7738826dbba)。本分支携带预览所需的生产依赖及上游包附带的许可证材料；维护源码位于源码分支。
+[源码与开发文档](https://github.com/Maker-Wen/markdown-preview/tree/d63c372a3136a2caec716e8af86d2c03b1bbb985)。本分支携带预览所需的生产依赖及上游包附带的许可证材料；维护源码位于源码分支。
