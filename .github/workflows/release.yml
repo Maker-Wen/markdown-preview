@@ -19,10 +19,12 @@ jobs:
           node-version: '22.12.0'
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             plugins/markdown-preview/package-lock.json
             plugins/markdown-preview/runtime/renderer/package-lock.json
       - name: Install plugin dependencies
         run: |
+          npm ci --ignore-scripts
           npm ci --prefix plugins/markdown-preview --include=dev --include=optional --ignore-scripts
           npm ci --prefix plugins/markdown-preview/runtime/renderer --include=optional --ignore-scripts
       - name: Install browser
@@ -35,9 +37,18 @@ jobs:
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
           node tests/test-remote-installer.cjs
+          node --test tests/test-npx-installer.cjs tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs
           git diff --check
       - name: Build release package
-        run: node scripts/package-release.cjs --version "${GITHUB_REF_NAME#v}"
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            task_release_version="$GITHUB_REF_NAME"
+          else
+            task_release_version="$(node -p "require('./plugins/markdown-preview/plugin.json').version")"
+          fi
+          node scripts/package-release.cjs --version "$task_release_version"
+          node scripts/package-marketplace.cjs --source-commit "$GITHUB_SHA"
+          npm pack --ignore-scripts --pack-destination dist
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -46,3 +57,6 @@ jobs:
             dist/markdown-preview-*.tar.gz
             dist/markdown-preview-*.zip
             dist/SHA256SUMS
+            dist/markdown-preview-marketplace.tgz
+            dist/marketplace.SHA256SUMS
+            dist/*markdown-preview-installer-*.tgz

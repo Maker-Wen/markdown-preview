@@ -1,6 +1,8 @@
 # 发布指南
 
-本文定义 Markdown Preview 1.0.0 的 GitHub 自有市场发布流程。发布目标是 GitHub 源码仓库、Git 标签和 GitHub Release 资产；不包含公共插件目录或工作区发布。
+本文定义 Markdown Preview 的 GitHub 自有市场发布流程。以下以 `v1.0.0` 为版本示例，发布时应替换为实际版本。发布目标是 GitHub 源码仓库、Git 标签和 GitHub Release 资产；不包含公共插件目录或工作区发布。
+
+本文描述源码 Release 渠道。独立 npm 安装器与自包含 `codex/marketplace` 分支分别发布，流程见[安装渠道与分发](distribution.md)。发布工作流会额外生成这两类可下载的打包产物；它不会自动发布 npm 包、推送市场分支或上架官方插件目录。
 
 ## 发布信息
 
@@ -74,16 +76,16 @@ git push origin v1.0.0
 远程安装脚本不要求用户手动 clone：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.ps1 | iex
+irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.ps1 | iex
 ```
 
-脚本默认使用 `Maker-Wen/markdown-preview` 与 `v1.0.0`，下载 Release 归档和 `SHA256SUMS`，校验成功后调用本地安装器。需要临时切换源或版本时，使用：
+脚本默认使用 `Maker-Wen/markdown-preview` 与 `latest`，先解析最新正式 Release 的标签，再下载该标签的归档和 `SHA256SUMS`，校验成功后调用包内安装器。归档和校验文件均使用解析出的固定标签，避免下载过程中发布新版本造成混用。维护者应将正式 Release 标记为最新版本，并上传匹配文件名的归档及摘要；无需随版本修改安装脚本的默认值或用户安装命令。需要临时切换源或版本时，使用：
 
 ```sh
 MARKDOWN_PREVIEW_REPOSITORY=Maker-Wen/markdown-preview \
