@@ -1,109 +1,82 @@
 # 发布指南
 
-本文定义 Markdown Preview 的 GitHub 自有市场发布流程。以下以 `v1.0.0` 为版本示例，发布时应替换为实际版本。发布目标是 GitHub 源码仓库、Git 标签和 GitHub Release 资产；不包含公共插件目录或工作区发布。
+GitHub Release 提供源码归档和远程安装所需的校验文件。自包含 `codex/marketplace` 分支独立发布，流程见[市场分发](distribution.md)。
 
-本文描述源码 Release 渠道。自包含 `codex/marketplace` 分支另行发布，流程见[安装渠道与分发](distribution.md)。发布工作流会额外生成市场归档和摘要；它不会自动推送市场分支或上架官方插件目录。
+## 准备版本
 
-## 发布信息
+在已合并的源码提交上发布，确认工作区干净，并完成[开发指南](development.md#测试)中的测试和生产依赖审计。
 
-| 项目 | 值 |
+同步两份插件清单、服务层与 renderer 的包及锁文件根版本、MCP 服务上报版本和 `CHANGELOG.md`。确认 `.agents/plugins/marketplace.json` 仍指向 `./plugins/markdown-preview`，市场名称为 `markdown-preview-marketplace`。
+
+后续命令从仓库根目录执行，版本取自插件清单：
+
+```sh
+release_version="$(node -p "require('./plugins/markdown-preview/plugin.json').version")"
+release_tag="v$release_version"
+```
+
+## 打包
+
+在具备 `tar` 和 `zip` 的 macOS / Linux 环境运行：
+
+```sh
+node scripts/package-release.cjs --version "$release_version"
+```
+
+产物位于 `dist/`：
+
+| 文件 | 用途 |
 | --- | --- |
-| 仓库 | `Maker-Wen/markdown-preview` |
-| 源码版本 | `1.0.0` |
-| Git 标签 | `v1.0.0` |
-| 默认归档 | `markdown-preview-v1.0.0.tar.gz` |
-| 校验文件 | `SHA256SUMS` |
-| 自有市场 | `markdown-preview-marketplace` |
+| `markdown-preview-v<version>.tar.gz` | macOS / Linux 源码归档 |
+| `markdown-preview-v<version>.zip` | Windows 源码归档 |
+| `SHA256SUMS` | 两份归档的 SHA-256 摘要 |
 
-仓库已创建；Release 资产和 raw 脚本 URL 要在完成推送与 Release 上传后再做远程安装验证。
+打包器保留安装入口、源码、清单和锁文件，排除依赖缓存、Git 数据及测试输出。`--version` 设置归档名称，不改写包内版本；上传前检查归档根目录和清单版本一致。
 
-## 发布前检查
+在 `dist/` 中校验摘要：macOS 使用 `shasum -a 256 -c SHA256SUMS`，Linux 使用 `sha256sum -c SHA256SUMS`。
 
-在仓库根目录执行：
+## 标签与 Release
 
 ```sh
-cd plugins/markdown-preview
-NPM_CONFIG_ENGINE_STRICT=true npm run setup
-npm test
-npm run test:browser
-cd ../..
-node --test tests/test-node-version.cjs tests/test-installer.cjs
-node --check scripts/install.cjs
-node --check tests/test-installer.cjs
-git diff --check
+git tag -a "$release_tag" -m "Markdown Preview $release_version"
+git push origin "$release_tag"
 ```
 
-还要确认：
+标签推送触发[发布工作流](../.github/workflows/release.yml)，完成测试并上传源码归档、市场归档及摘要作为 Actions 产物。手动运行工作流时，版本取自插件清单。工作流完成后，由维护者创建 GitHub Release。
 
-- `plugins/markdown-preview/plugin.json` 与 `.codex-plugin/plugin.json` 的基础版本均为 `1.0.0`。
-- `.agents/plugins/marketplace.json` 指向 `./plugins/markdown-preview`，市场名称为 `markdown-preview-marketplace`。
-- 归档不包含 `node_modules/`、`.git/`、开发测试输出或用户缓存。
-- `SHA256SUMS` 与归档使用同一文件名和字节内容。
-- 依赖审计结果已经记录，并区分已修复项和发布已知风险。
-
-## 创建 Release 资产
-
-归档应保留安装器所需的源码、清单、运行时依赖声明和远程安装脚本。不要把开发依赖目录直接打进源码归档；本地安装器和远程安装器会在目标机器准备生产依赖。
-
-示意命令：
+使用本地已校验的产物创建正式 Release：
 
 ```sh
-tar --exclude='node_modules' --exclude='.git' -czf markdown-preview-v1.0.0.tar.gz .
-shasum -a 256 markdown-preview-v1.0.0.tar.gz > SHA256SUMS
+gh release create "$release_tag" --verify-tag --latest \
+  --title "Markdown Preview $release_version" --notes-file CHANGELOG.md \
+  "dist/markdown-preview-$release_tag.tar.gz" \
+  "dist/markdown-preview-$release_tag.zip" \
+  dist/SHA256SUMS
 ```
 
-最终归档内容应由发布者检查；上面的命令不是跨平台打包器的替代实现。Windows 端的安装脚本使用同一 Release 资产，当前尚无真实 Windows 设备发布证据。
+远程脚本默认解析最新正式 Release，再从该固定标签下载归档和 `SHA256SUMS`。归档名称和上传内容必须与摘要一致；用户安装命令见 [README](../README.md#安装)。
 
-## 创建标签和 GitHub Release
+## 发布验收
 
-```sh
-git add README.md CHANGELOG.md docs install.sh install.ps1 install-remote.sh install-remote.ps1 scripts plugins .agents tests .github .gitignore
-git commit -m "release: markdown preview v1.0.0"
-git tag -a v1.0.0 -m "Markdown Preview 1.0.0"
-git push origin <branch>
-git push origin v1.0.0
-```
+1. 核对标签指向的源码提交、Release 版本及全部资产名称。
+2. 下载发布后的两份归档，用同一 Release 的 `SHA256SUMS` 校验。
+3. 固定本次版本，验证远程脚本下载、参数转发和安装。
+4. 检查 Codex 中插件版本、安装及启用状态，验证 MCP 资源和 Markdown 渲染。
+5. 在各支持平台完成查看器选择、普通 Markdown 点击及重启后的交互验收，详见[兼容性说明](compatibility.md)。
 
-在 GitHub Release 中上传：
-
-- `markdown-preview-v1.0.0.tar.gz`
-- `SHA256SUMS`
-
-推送前应先确认远程仓库和分支名，不能用占位值执行命令。GitHub Release 创建后，再把真实 raw 地址写入分发说明或项目主页。
-
-## 远程安装
-
-远程安装脚本不要求用户手动 clone：
+macOS / Linux 可固定版本执行：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.sh | sh
+MARKDOWN_PREVIEW_VERSION="$release_tag" sh install-remote.sh --dry-run
+MARKDOWN_PREVIEW_VERSION="$release_tag" sh install-remote.sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.ps1 | iex
+$env:MARKDOWN_PREVIEW_VERSION = "v$(node -p "require('./plugins/markdown-preview/plugin.json').version")"
+.\install-remote.ps1 --dry-run
+.\install-remote.ps1
 ```
 
-脚本默认使用 `Maker-Wen/markdown-preview` 与 `latest`，先解析最新正式 Release 的标签，再下载该标签的归档和 `SHA256SUMS`，校验成功后调用包内安装器。归档和校验文件均使用解析出的固定标签，避免下载过程中发布新版本造成混用。维护者应将正式 Release 标记为最新版本，并上传匹配文件名的归档及摘要；无需随版本修改安装脚本的默认值或用户安装命令。需要临时切换源或版本时，使用：
-
-```sh
-MARKDOWN_PREVIEW_REPOSITORY=Maker-Wen/markdown-preview \
-MARKDOWN_PREVIEW_VERSION=v1.0.0 \
-  sh install-remote.sh
-```
-
-远程脚本至少应验证 Node.js 22.12.0、归档摘要、目标目录和安装失败后的清理；它不应修改 Codex 安装包或启动方式。
-
-## 发布后验证
-
-发布者应分别记录：
-
-1. Git 标签和 Release 资产可下载。
-2. `SHA256SUMS` 能校验归档。
-3. macOS / Linux 远程安装完成后，Codex 报告插件为已安装并启用。
-4. MCP 自检、插件页面和一次实际文件查看器选择成功。
-5. 普通 `.md` 点击在完成一次首选查看器选择后进入 Markdown Preview。
-6. Windows 安装与重启后偏好持久化的证据（目前均未完成，不得写成已验证）。
-
-本地测试、宿主运行、Release 资产和用户设备验证应分开记录，不能用其中一类证据替代其他类别。
+源码安装失败时按安装器提示恢复或重试，处理方式见[本地源码安装](development.md#本地源码安装)。

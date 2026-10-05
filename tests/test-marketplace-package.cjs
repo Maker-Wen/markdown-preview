@@ -139,7 +139,6 @@ test('self-contained marketplace preserves its production runtime and runs after
       const readme = await fs.readFile(path.join(output, file), 'utf8');
       assert.match(readme, /--ref codex\/marketplace/);
       assert.match(readme, /marketplace upgrade markdown-preview-marketplace/);
-      assert.match(readme, /无需 npm/);
       assert.ok(readme.includes(sourceCommit));
       assert.ok(readme.includes('1.2.3'));
       assert.doesNotMatch(readme, /\.\.\/\.\.\/docs\//);

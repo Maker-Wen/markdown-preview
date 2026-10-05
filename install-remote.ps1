@@ -6,15 +6,14 @@ function Show-Usage {
     @'
 Markdown Preview 远程安装器
 
-用法：下载本文件后执行：
+用法：
   .\install-remote.ps1 [--dry-run]
 
 环境变量：
   MARKDOWN_PREVIEW_REPOSITORY  GitHub owner/repository，默认 Maker-Wen/markdown-preview
   MARKDOWN_PREVIEW_VERSION      Release 标签，默认 latest（最新正式版）
 
-安装器会解析最新正式版或指定标签，下载同一版本的 Release 资产，
-校验 SHA-256，然后运行包内安装器。
+下载 Release、校验 SHA-256 并安装，默认使用最新正式版。
 '@ | Write-Host
 }
 
