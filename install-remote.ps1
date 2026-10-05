@@ -1,9 +1,6 @@
-﻿[CmdletBinding()]
-param()
-
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $repository = if ($env:MARKDOWN_PREVIEW_REPOSITORY) { $env:MARKDOWN_PREVIEW_REPOSITORY } else { 'Maker-Wen/markdown-preview' }
-$version = if ($env:MARKDOWN_PREVIEW_VERSION) { $env:MARKDOWN_PREVIEW_VERSION } else { 'v1.0.0' }
+$version = if ($env:MARKDOWN_PREVIEW_VERSION) { $env:MARKDOWN_PREVIEW_VERSION } else { 'latest' }
 
 function Show-Usage {
     @'
@@ -14,14 +11,27 @@ Markdown Preview 远程安装器
 
 环境变量：
   MARKDOWN_PREVIEW_REPOSITORY  GitHub owner/repository，默认 Maker-Wen/markdown-preview
-  MARKDOWN_PREVIEW_VERSION      Release 标签，默认 v1.0.0
+  MARKDOWN_PREVIEW_VERSION      Release 标签，默认 latest（最新正式版）
+
+安装器会解析最新正式版或指定标签，下载同一版本的 Release 资产，
+校验 SHA-256，然后运行包内安装器。
 '@ | Write-Host
 }
 
 if ($args -contains '--help') { Show-Usage; exit 0 }
-if ($repository -notmatch '^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$') { throw 'MARKDOWN_PREVIEW_REPOSITORY 必须是 owner/repository。' }
+if ($repository -notmatch '\A[A-Za-z0-9._-]+/[A-Za-z0-9._-]+\z') { throw 'MARKDOWN_PREVIEW_REPOSITORY 必须是 owner/repository。' }
+if ($version -eq 'latest') {
+    try {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repository/releases/latest" -Headers @{ Accept = 'application/vnd.github+json' }
+    } catch {
+        throw "无法查询最新正式版，请检查网络及仓库的 Release：$($_.Exception.Message)"
+    }
+    if ($release.draft -or $release.prerelease -or -not $release.tag_name) { throw '最新正式版没有返回有效的 Release 标签。' }
+    $version = [string]$release.tag_name
+}
 if ($version -notmatch '^v') { $version = "v$version" }
-if ($version -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$') { throw 'MARKDOWN_PREVIEW_VERSION 必须是 vX.Y.Z 或 X.Y.Z。' }
+if ($version -cnotmatch '\Av[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\z') { throw 'MARKDOWN_PREVIEW_VERSION 必须是 latest、vX.Y.Z 或 X.Y.Z。' }
+Write-Host "安装版本：$version"
 
 $temporary = Join-Path ([System.IO.Path]::GetTempPath()) ("markdown-preview-remote-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary | Out-Null

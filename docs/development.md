@@ -68,6 +68,8 @@ PLAYWRIGHT_EXECUTABLE_PATH=/path/to/chromium npm run test:browser
 node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
+独立 `npx` 安装器与可直接安装的 Codex 市场另需根目录的锁定依赖。构建、分发测试及发布说明见[安装渠道与分发](distribution.md)。三平台 CI 使用同一份市场归档检查安装后的插件缓存，并从同一份 npm 安装包检查实际入口；配置 CI 不代表已取得各平台运行结果。
+
 还应在提交前运行脚本语法检查和差异检查：
 
 ```sh
@@ -104,7 +106,7 @@ node scripts/install.cjs     # 跨平台入口
 | `--dry-run` | 只读检查并显示安装计划 |
 | `--help` | 显示用法 |
 
-远程 Release 安装不要求手动 clone。`install-remote.sh` 和 `install-remote.ps1` 默认使用正式仓库和 `v1.0.0`，下载 `markdown-preview-v1.0.0.tar.gz` 与 `SHA256SUMS`，校验通过后再调用本地安装器。可使用以下环境变量覆盖默认值：
+远程 Release 安装不要求手动 clone。`install-remote.sh` 和 `install-remote.ps1` 默认使用正式仓库和 `latest`，先解析最新正式 Release 的标签，再按该固定标签下载归档与 `SHA256SUMS`，校验通过后调用包内安装器。macOS / Linux 使用 `.tar.gz`，Windows 使用 `.zip`。查询失败或标签不符合版本格式时直接退出，不回退到旧版本。可使用以下环境变量指定来源或固定版本：
 
 ```sh
 MARKDOWN_PREVIEW_REPOSITORY=Maker-Wen/markdown-preview
@@ -183,10 +185,10 @@ npm audit --prefix plugins/markdown-preview/runtime/renderer --omit=dev
 
 复核本插件自有 parser 规则、上游生成的 HTML、KaTeX 字体、Mermaid 脚本和样式文件路径，以及本地图片与链接处理。上述组件测试通过后，还需在真实 Codex 中检查文件查看器选择、普通 Markdown 点击和渲染交互；它们不能替代宿主验证，也不代表 Windows 已验证。
 
-插件版本与 Crossnote 版本独立。升级经验证后，按[发布指南](releasing.md)发布新的插件版本：同步两份插件清单、相关包版本元数据、MCP 服务与界面上报版本、打包器默认版本、更新日志、远程安装脚本的默认 Release 版本，以及 README 中指向新标签的安装命令，再创建对应 Git 标签和 Release 资产。用户重跑**新插件版本**的安装命令后才能取得新依赖；重跑仍指向 `v1.0.0` 的旧命令只会重装旧版本。
+插件版本与 Crossnote 版本独立。升级经验证后，按[发布指南](releasing.md)发布新的插件版本：同步两份插件清单、相关包版本元数据、MCP 服务与界面上报版本、打包器默认版本和更新日志，再创建对应 Git 标签和 Release 资产。远程脚本继续默认使用 `latest`，README 中的 `main` 固定入口无需随版本修改。用户重跑该命令后取得最新正式版及其新依赖；历史 `v1.0.0` 脚本入口或显式指定的版本仍只安装该版本。
 
 仓库已配置[Dependabot](../.github/dependabot.yml)，每周检查 `plugins/markdown-preview/runtime/renderer` 中 Crossnote 的更新。直接依赖跟踪范围仅为 Crossnote；升级 PR 更新其精确版本声明和 renderer 锁文件，传递依赖的变化也需一起审查。上面的手动流程可用于维护者主动选择目标版本或处理升级失败。
 
 [验证工作流](../.github/workflows/validate.yml) 自动对 PR 和 `main` 分支推送，在 Node.js 22.12.0 和 24.x 上启用严格 engine 校验，运行现有 MCP、浏览器、安装器版本边界、安装器、发布包与远程安装器检查。检查失败时先定位依赖变化带来的影响；检查通过后，仍需维护者阅读差异并完成上述真实 Codex 复核，再决定合并和发版。组件检查不代表 Windows 或用户设备已经验证。
 
-当前流程不会自动合并 PR、发布插件或更新用户端安装。用户取得已发布的新版本仍需运行对应安装命令；依赖升级和漏洞处置不应隐含在版本号修改中。
+CI 不会自动合并 PR 或发布插件。Git 市场按启动检查或手动 `marketplace upgrade` 更新；Release 和本地渠道需重跑安装命令。依赖升级和漏洞处置不应隐含在版本号修改中。

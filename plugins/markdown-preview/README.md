@@ -6,21 +6,64 @@ Markdown 解析与基础渲染基于 [Crossnote](https://github.com/shd101wyy/cr
 
 ## 安装
 
-需要 Node.js 22.12.0 或更新版本、npm，以及支持 `plugin` 命令的 Codex CLI。
+推荐通过 Codex 插件市场安装。需要 Node.js 22.12.0 或更新版本、Git 和支持 `plugin` 命令的 Codex CLI；`node` 必须可从 `PATH` 找到。市场安装和运行无需 npm，也无需 npm 登录。
 
-正式版本提供无需手动 clone 的远程入口。仓库发布后，使用对应版本的脚本：
+携带预览运行依赖的 [`codex/marketplace`](https://github.com/Maker-Wen/markdown-preview/tree/codex/marketplace) 分支已发布。执行：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.sh | sh
+codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
+codex plugin add markdown-preview@markdown-preview-marketplace
+```
+
+Codex 0.160.0 会在 app-server 启动时后台检查 Git 市场并更新已配置插件缓存；该版本没有持续定时轮询。见官方[启动流程](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/app-server/src/message_processor.rs#L540-L559)与[更新实现](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/core-plugins/src/manager.rs#L2812-L3017)。需要立即检查更新时，执行：
+
+```sh
+codex plugin marketplace upgrade markdown-preview-marketplace
+codex plugin add markdown-preview@markdown-preview-marketplace
+```
+
+插件启动不安装或下载依赖；注册和更新 Git 市场时需要访问仓库。Codex 可在更新后请求 [MCP 运行环境刷新](https://github.com/openai/codex/blob/rust-v0.160.0/codex-rs/app-server/src/effective_plugin_change.rs#L30-L37)，已打开的预览页面不保证立即重绘；需要时重新打开预览或开启新聊天。
+
+### 迁移已有本地市场
+
+先查看当前市场，记录 `markdown-preview-marketplace` 本地条目的旧 `root` 绝对路径：
+
+```sh
+codex plugin marketplace list --json
+```
+
+需要改用已发布的 Git 分支时，执行：
+
+```sh
+codex plugin marketplace remove markdown-preview-marketplace
+codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
+codex plugin add markdown-preview@markdown-preview-marketplace
+```
+
+迁移保留原本地市场目录和插件缓存。若迁移失败且 Git 市场已注册，先执行 `codex plugin marketplace remove markdown-preview-marketplace`。然后将占位路径替换为旧 `root`，恢复本地来源：
+
+```sh
+codex plugin marketplace add "<旧 root 的绝对路径>"
+codex plugin add markdown-preview@markdown-preview-marketplace
+```
+
+`markdown-preview@personal` 属于另一个市场，不会被自动删除。若出现两个查看器，可在 Codex 插件页手动禁用旧的 personal 入口。
+
+### Release 脚本与本地源码
+
+Release 脚本需要 Node.js 22.12.0 或更新版本、npm 和支持 `plugin` 的 Codex CLI。以下固定入口安装最新正式 Release；重复执行可更新：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.sh | sh
 ```
 
 Windows PowerShell：
 
 ```powershell
-irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/v1.0.0/install-remote.ps1 | iex
+irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.ps1 | iex
 ```
 
-远程脚本默认下载 GitHub Release 的 `markdown-preview-v1.0.0.tar.gz` 和 `SHA256SUMS`，校验后执行安装。可用 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖默认源和版本。
+远程脚本默认使用 `latest`，先解析最新正式 Release 的标签，再下载该标签的归档和 `SHA256SUMS`，校验后执行安装。macOS / Linux 使用 `.tar.gz`，Windows 使用 `.zip`；`main` 仅提供安装入口，安装内容来自已发布的 Release。可用 `MARKDOWN_PREVIEW_REPOSITORY`、`MARKDOWN_PREVIEW_VERSION` 覆盖默认源和版本。
 
 已经取得源码时，在仓库根目录执行：
 
@@ -32,13 +75,23 @@ node scripts/install.cjs     # 跨平台入口
 
 安装器准备运行依赖，在注册市场前验证准备目录中的 MCP 服务，再从 `markdown-preview-marketplace` 市场安装插件。更新本地源码后重新执行本地安装入口，可更新部署。安装器生成的插件缓存不会随源码修改自动同步。
 
+### 独立 npx 安装器
+
+GitHub 入口使用 `main` 中的独立安装器，下载并安装最新正式 GitHub Release。需要 Node.js 22.12.0 或更新版本、npm、Git 和支持 `plugin` 的 Codex CLI：
+
+```sh
+npx --yes github:Maker-Wen/markdown-preview
+```
+
+暂用 npm 包名 `@maker-wen/markdown-preview-installer` 尚未发布，短包名入口也尚不可用。渠道说明见[源码仓库](https://github.com/Maker-Wen/markdown-preview)中的 `docs/distribution.md`。
+
 ## 更新
 
-插件通过依赖声明和锁文件固定 Crossnote 版本。源码仓库的 [Dependabot 配置](../../.github/dependabot.yml) 每周检查 renderer 的 Crossnote 更新，更新精确依赖声明和对应锁文件并提出 PR；[验证工作流](../../.github/workflows/validate.yml) 自动运行现有 MCP、浏览器、安装器及发布包检查。维护者验证兼容性后决定是否合并和发布新的 Markdown Preview 版本。
+插件通过依赖声明和锁文件固定 Crossnote 版本。源码仓库的 [Dependabot 配置](https://github.com/Maker-Wen/markdown-preview/blob/main/.github/dependabot.yml) 每周检查 renderer 的 Crossnote 更新，更新精确依赖声明和对应锁文件并提出 PR；[验证工作流](https://github.com/Maker-Wen/markdown-preview/blob/main/.github/workflows/validate.yml) 自动运行现有 MCP、浏览器、安装器及发布包检查。维护者验证兼容性后决定是否合并和发布新的 Markdown Preview 版本。
 
-当前流程不会自动合并 PR、发布插件或更新用户端安装；现有安装不会自动替换 Crossnote。
+CI 不会自动合并 PR 或发布插件。插件依赖只随维护者发布的插件版本更新，不会直接跟随 Crossnote 上游版本。
 
-远程更新应使用目标插件版本对应的安装入口；固定的 `v1.0.0` 命令仍会安装旧版本。更新后打开新的 Codex 聊天以加载插件。维护者的依赖升级步骤见完整源码仓库的[依赖维护说明](../../docs/development.md#依赖维护)。
+市场安装按上面的启动检查或手动命令更新。Release 脚本及 GitHub `npx` 安装器重跑同一命令即可更新到最新正式版；显式指定版本或使用历史 `v1.0.0` 脚本入口时仍安装该版本。维护者的依赖升级步骤见源码仓库的[依赖维护说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#依赖维护)。
 
 ## 使用
 
@@ -72,11 +125,11 @@ npm run test:browser
 node --test tests/test-node-version.cjs tests/test-installer.cjs
 ```
 
-更多说明见仓库根目录的[开发指南](../../docs/development.md)、[兼容性说明](../../docs/compatibility.md)和[发布指南](../../docs/releasing.md)。
+更多说明见源码仓库的[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md)、[兼容性说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/compatibility.md)和[发布指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/releasing.md)。
 
 ## 分发说明
 
-本目录包含插件清单、MCP 服务、预览页面及渲染依赖声明。正式版本基础版本为 `1.0.0`；安装器根据源码和运行环境生成 `<base>+codex.<hash>` 部署版本。自有市场清单位于源码仓库的 `.agents/plugins/marketplace.json`。安装器负责本机部署，不上传源码或创建 GitHub Release。
+本目录包含插件清单、MCP 服务、预览页面及渲染依赖声明。自包含市场包携带预览运行依赖，版本为 `<base>+marketplace.<内容摘要>`；保留上游包附带的许可证材料。Release 安装器根据源码和运行环境生成 `<base>+codex.<hash>` 部署版本。自有市场清单位于源码仓库的 `.agents/plugins/marketplace.json`。安装器负责本机部署，不上传源码或创建 GitHub Release。
 
 ## 致谢
 

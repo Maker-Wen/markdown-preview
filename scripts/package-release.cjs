@@ -10,7 +10,7 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_VERSION = '1.0.0';
-const EXCLUDED = new Set(['.git', 'node_modules', 'dist', '.DS_Store', 'playwright-report', 'test-results', 'coverage']);
+const EXCLUDED = new Set(['.git', '.archify', 'node_modules', 'dist', '.DS_Store', 'playwright-report', 'test-results', 'coverage']);
 
 function usage() {
   return `Markdown Preview 发布包
@@ -73,7 +73,9 @@ async function build(options) {
     const packageRoot = path.join(stage, rootName);
     await fs.cp(ROOT, packageRoot, { recursive: true, filter: shouldCopy });
     await fs.rm(path.join(packageRoot, 'dist'), { recursive: true, force: true });
-    execFileSync('tar', ['-czf', outputs[0], '-C', stage, rootName], { stdio: 'inherit' });
+    execFileSync('tar', ['-czf', outputs[0], '-C', stage, rootName], {
+      stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' }
+    });
     execFileSync('zip', ['-qr', outputs[1], rootName], { cwd: stage, stdio: 'inherit' });
     const sums = [];
     for (const file of outputs.slice(0, 2)) sums.push(`${await sha256(file)}  ${path.basename(file)}`);

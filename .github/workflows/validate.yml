@@ -28,10 +28,12 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             plugins/markdown-preview/package-lock.json
             plugins/markdown-preview/runtime/renderer/package-lock.json
       - name: Install plugin dependencies
         run: |
+          npm ci --ignore-scripts
           npm ci --prefix plugins/markdown-preview --include=dev --include=optional --ignore-scripts
           npm ci --prefix plugins/markdown-preview/runtime/renderer --include=optional --ignore-scripts
       - name: Install browser
@@ -44,4 +46,60 @@ jobs:
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
           node tests/test-remote-installer.cjs
+          node --test tests/test-npx-installer.cjs tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs
           git diff --check
+      - name: Build portable distribution
+        if: matrix.node-version == '22.12.0'
+        run: |
+          node scripts/package-marketplace.cjs --source-commit "${{ github.sha }}"
+          npm pack --ignore-scripts --pack-destination dist
+      - name: Upload portable distribution
+        if: matrix.node-version == '22.12.0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: markdown-preview-portable-distribution
+          path: |
+            dist/markdown-preview-marketplace.tgz
+            dist/marketplace.SHA256SUMS
+            dist/*markdown-preview-installer-*.tgz
+
+  verify-distribution:
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      NPM_CONFIG_ENGINE_STRICT: 'true'
+      MARKDOWN_PREVIEW_REQUIRE_CODEX: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+      - name: Install validation dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix plugins/markdown-preview --ignore-scripts
+          npm install --prefix "${{ runner.temp }}/markdown-preview-codex" --ignore-scripts --no-audit --no-fund @openai/codex@0.160.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: markdown-preview-portable-distribution
+          path: dist
+      - name: Verify PowerShell installer argument forwarding
+        if: runner.os == 'Windows'
+        run: |
+          ./install-remote.ps1 --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./install-remote.ps1 --dry-run --install-dir "${{ runner.temp }}/markdown-preview-remote-dry-run" --codex "${{ runner.temp }}/markdown-preview-codex/node_modules/@openai/codex/bin/codex.js"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install and run the shared npm installer package
+        run: npm run test:npx-package
+      - name: Verify and unpack the shared distribution
+        run: node -e "const fs=require('node:fs');const crypto=require('node:crypto');const file='dist/markdown-preview-marketplace.tgz';const expected=fs.readFileSync('dist/marketplace.SHA256SUMS','utf8').split(/\s+/)[0];if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==expected)throw Error('marketplace checksum mismatch');require('tar').x({file,cwd:'dist',strict:true}).catch(e=>{console.error(e);process.exitCode=1;})"
+      - name: Install and start the final Codex plugin cache
+        env:
+          MARKDOWN_PREVIEW_TEST_CODEX: ${{ runner.temp }}/markdown-preview-codex/node_modules/@openai/codex/bin/codex.js
+        run: node --test tests/test-marketplace-install.cjs
