@@ -1,6 +1,6 @@
 {
   "name": "markdown-preview",
-  "version": "1.0.0+marketplace.00ab9554058d87ec",
+  "version": "1.0.0+marketplace.e0817958abec29b8",
   "description": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。",
   "author": {
     "name": "Local developer"

@@ -4,7 +4,7 @@
   "root": ".",
   "sourceVersion": "1.0.0",
   "baseVersion": "1.0.0",
-  "contentHash": "00ab9554058d87ec258e70d1897a4277051bbff80479c153c4b306a12263613c",
-  "version": "1.0.0+marketplace.00ab9554058d87ec",
-  "sourceCommit": "d63c372a3136a2caec716e8af86d2c03b1bbb985"
+  "contentHash": "e0817958abec29b8d6c5d665aba693f2f91adb2f6020e274550dc288d2082685",
+  "version": "1.0.0+marketplace.e0817958abec29b8",
+  "sourceCommit": "92966b8ba6863f287f3481261616bb1e79760461"
 }
