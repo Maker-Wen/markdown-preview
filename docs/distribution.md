@@ -1,6 +1,6 @@
 # 安装渠道与分发
 
-推荐使用预构建 Codex 插件市场。市场分发包携带预览运行依赖，Codex 安装后直接启动 MCP。GitHub `npx` 入口使用 `main` 中的独立安装器；npm 短包名尚未发布。
+推荐使用预构建 Codex 插件市场。市场分发包携带预览运行依赖，Codex 安装后直接启动 MCP。远程 Release 脚本与本地源码安装入口见 [README](../README.md#安装)。
 
 ## 市场安装与更新
 
@@ -58,10 +58,10 @@ npm --prefix plugins/markdown-preview run setup
 node scripts/build-marketplace.cjs
 ```
 
-构建输出 `dist/marketplace`，可供 Codex 作为本地市场安装，也可用于发布分支。需要归档时，准备根目录打包依赖并执行：
+构建输出 `dist/marketplace`，可供 Codex 作为本地市场安装，也可用于发布分支。根目录的 `package.json` 是私有构建工具配置，只为市场归档声明开发依赖，不提供用户安装入口。需要归档时，准备根目录的锁定开发依赖并执行：
 
 ```sh
-npm ci --ignore-scripts
+npm ci --include=dev --ignore-scripts
 node scripts/package-marketplace.cjs
 ```
 
@@ -93,20 +93,6 @@ node scripts/publish-marketplace.cjs --publish
 
 同名本地来源迁移到 Git、再回退到原本地来源也已在临时配置中实测：插件保持安装及启用状态，原本地市场目录保留。
 
-## 独立 npx 安装器
-
-根 `package.json`、`bin/install.cjs` 与 `lib/release.cjs` 构成独立安装包。包仅分发下载入口，使用 Node.js 的 `fetch` 与锁定的 JS `tar` 库，不包含插件运行环境或开发测试。GitHub 入口使用 `main` 中的上述文件，下载并安装最新正式 GitHub Release；需要 Node.js 22.12.0 或更新版本、npm、Git 和支持 `plugin` 的 Codex CLI：
-
-```sh
-npx --yes github:Maker-Wen/markdown-preview
-```
-
-选项 `--version` 选择目标 Release，默认 `latest`；`--repository` 覆盖仓库。`--install-dir`、`--codex` 与 `--dry-run` 传给包内安装器，参数边界保持不变。`--help` 不联网；`--dry-run` 下载、校验并显示计划。显式离线模式会拒绝远程下载。
-
-最新正式版只解析一次，归档与 `SHA256SUMS` 固定到该标签。安装前验证摘要、根目录及所有归档成员；链接与不安全路径会被拒绝。旧 macOS 归档中的 AppleDouble 元数据经验证后丢弃，不写入解压目录。包内安装器负责永久目录、依赖、自检与失败恢复；npm 缓存不作为市场部署目录。
-
-暂用 npm 包名 `@maker-wen/markdown-preview-installer` 尚未发布，`private: true` 防止误发布。正式包名及 npm 发布作为后续事项；发布前须确定实际用户或组织 scope，同步锁文件、帮助和文档，再设置公开发布元数据。当前代码未选择开源许可，元数据使用 `UNLICENSED`。npm 发布需要维护者账号；用户安装无需登录 npm。npm 正式发布后的短包名入口无需 Git。
-
 ## 验证
 
 ```sh
@@ -116,16 +102,6 @@ node --test tests/test-marketplace-install.cjs
 
 分发测试归档后移动包到独立目录，在禁网且关闭全局依赖搜索的进程中执行完整样例渲染与 UI 资源装配。市场安装测试使用临时 Codex 配置，实际安装市场，再按插件清单从最终缓存完成 MCP 初始化、资源读取与 Markdown 渲染。缺少 Codex CLI 或未生成分发目录时该项会跳过；需要把缺失前提视为失败时，设置 `MARKDOWN_PREVIEW_REQUIRE_CODEX=1`。发布后可通过 `MARKDOWN_PREVIEW_MARKETPLACE_GIT=Maker-Wen/markdown-preview` 和 `MARKDOWN_PREVIEW_MARKETPLACE_REF=codex/marketplace` 验证真实 Git 安装及市场更新，仍使用临时配置。
 
-独立安装器另行验证：
-
-```sh
-node --test tests/test-npx-installer.cjs
-npm pack --ignore-scripts --pack-destination dist
-npm run test:npx-package
-```
-
-安装器测试模拟网络并验证失败清理。
-
-成品安装器测试使用临时 npm 配置、缓存与安装目录，从唯一的安装器 `.tgz` 安装包，再执行已安装的实际入口 `--help`。三平台 CI 下载 Linux 构建的同一组产物，分别完成这个入口检查与市场缓存启动检查；安装器的完整远程下载仍由模拟测试及单独的真实 Release 验证覆盖。
+三平台 CI 下载 Linux 构建的同一份市场归档和摘要，校验后从最终插件缓存完成 MCP 启动检查。远程 Release 脚本的下载与参数处理由对应测试覆盖；真实安装及宿主交互仍需单独验证。
 
 本地验证与 CI、真实用户设备及公开发行是不同证据。macOS 本地结果不代表 Windows/Linux 已运行，也不能代替实际用户在 Codex 界面选择查看器的验证。

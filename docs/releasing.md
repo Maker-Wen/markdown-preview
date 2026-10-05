@@ -2,7 +2,7 @@
 
 本文定义 Markdown Preview 的 GitHub 自有市场发布流程。以下以 `v1.0.0` 为版本示例，发布时应替换为实际版本。发布目标是 GitHub 源码仓库、Git 标签和 GitHub Release 资产；不包含公共插件目录或工作区发布。
 
-本文描述源码 Release 渠道。独立 npm 安装器与自包含 `codex/marketplace` 分支分别发布，流程见[安装渠道与分发](distribution.md)。发布工作流会额外生成这两类可下载的打包产物；它不会自动发布 npm 包、推送市场分支或上架官方插件目录。
+本文描述源码 Release 渠道。自包含 `codex/marketplace` 分支另行发布，流程见[安装渠道与分发](distribution.md)。发布工作流会额外生成市场归档和摘要；它不会自动推送市场分支或上架官方插件目录。
 
 ## 发布信息
 

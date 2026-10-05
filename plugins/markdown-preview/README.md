@@ -75,23 +75,13 @@ node scripts/install.cjs     # 跨平台入口
 
 安装器准备运行依赖，在注册市场前验证准备目录中的 MCP 服务，再从 `markdown-preview-marketplace` 市场安装插件。更新本地源码后重新执行本地安装入口，可更新部署。安装器生成的插件缓存不会随源码修改自动同步。
 
-### 独立 npx 安装器
-
-GitHub 入口使用 `main` 中的独立安装器，下载并安装最新正式 GitHub Release。需要 Node.js 22.12.0 或更新版本、npm、Git 和支持 `plugin` 的 Codex CLI：
-
-```sh
-npx --yes github:Maker-Wen/markdown-preview
-```
-
-暂用 npm 包名 `@maker-wen/markdown-preview-installer` 尚未发布，短包名入口也尚不可用。渠道说明见[源码仓库](https://github.com/Maker-Wen/markdown-preview)中的 `docs/distribution.md`。
-
 ## 更新
 
 插件通过依赖声明和锁文件固定 Crossnote 版本。源码仓库的 [Dependabot 配置](https://github.com/Maker-Wen/markdown-preview/blob/main/.github/dependabot.yml) 每周检查 renderer 的 Crossnote 更新，更新精确依赖声明和对应锁文件并提出 PR；[验证工作流](https://github.com/Maker-Wen/markdown-preview/blob/main/.github/workflows/validate.yml) 自动运行现有 MCP、浏览器、安装器及发布包检查。维护者验证兼容性后决定是否合并和发布新的 Markdown Preview 版本。
 
 CI 不会自动合并 PR 或发布插件。插件依赖只随维护者发布的插件版本更新，不会直接跟随 Crossnote 上游版本。
 
-市场安装按上面的启动检查或手动命令更新。Release 脚本及 GitHub `npx` 安装器重跑同一命令即可更新到最新正式版；显式指定版本或使用历史 `v1.0.0` 脚本入口时仍安装该版本。维护者的依赖升级步骤见源码仓库的[依赖维护说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#依赖维护)。
+市场安装按上面的启动检查或手动命令更新。Release 脚本重跑同一命令即可更新到最新正式版；显式指定版本或使用历史 `v1.0.0` 脚本入口时仍安装该版本。维护者的依赖升级步骤见源码仓库的[依赖维护说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#依赖维护)。
 
 ## 使用
 

@@ -106,25 +106,13 @@ node scripts/install.cjs --repo <Git URL> --ref v1.0.0
 
 安装器会准备生产依赖、运行 MCP 自检、注册自有市场 `markdown-preview-marketplace`，并安装 `markdown-preview`。重复执行本地安装入口可更新当前源码的部署；默认安装目录为用户主目录下的 `.local/share/markdown-preview/marketplace`。
 
-### 独立 npx 安装器
-
-GitHub 入口使用 `main` 中的独立安装器，下载并安装最新正式 GitHub Release。需要 Node.js 22.12.0 或更新版本、npm、Git 和支持 `plugin` 的 Codex CLI：
-
-```sh
-npx --yes github:Maker-Wen/markdown-preview
-```
-
-安装器支持 `--version v1.0.0`、`--install-dir <绝对路径>`、`--codex <路径>`、`--dry-run` 和 `--help`。`--dry-run` 会下载并验证归档、显示安装计划，不安装插件。
-
-独立 npm 包暂用名称 `@maker-wen/markdown-preview-installer`，尚未发布。npm 短命令需等正式包名确定并发布后才能使用；用户安装无需登录 npm。渠道状态与维护者操作见[安装渠道与分发](docs/distribution.md)。
-
 ## 更新
 
 Crossnote 与 Markdown Preview 分别发布版本。插件通过依赖声明和锁文件固定 Crossnote 版本；上游发布新版本后，需要验证兼容性，再随新的插件版本分发。已安装的插件不会自动跟随上游更新。
 
 仓库的 [Dependabot 配置](.github/dependabot.yml) 每周检查 renderer 的 Crossnote 更新，更新精确依赖声明和对应锁文件并提出 PR。[验证工作流](.github/workflows/validate.yml) 自动运行现有 MCP、浏览器、安装器及发布包检查。维护者仍负责审查、合并和发版；CI 不会自动合并 PR 或发布插件。
 
-市场安装按上面的启动检查或手动命令更新。本地源码安装先更新源码，再重新执行本地入口。Release 脚本及 GitHub `npx` 安装器重跑同一命令即可更新到最新正式版；显式指定版本时仍安装该版本。历史 `v1.0.0` 脚本地址仍会安装 `v1.0.0`。
+市场安装按上面的启动检查或手动命令更新。本地源码安装先更新源码，再重新执行本地入口。Release 脚本重跑同一命令即可更新到最新正式版；显式指定版本时仍安装该版本。历史 `v1.0.0` 脚本地址仍会安装 `v1.0.0`。
 
 维护者升级 Crossnote 的具体步骤见[开发指南中的依赖维护](docs/development.md#依赖维护)。
 
@@ -160,7 +148,6 @@ docs/                        开发、兼容性与发布说明
 .agents/plugins/             自有市场清单
 install.sh / install.ps1     本地安装入口
 install-remote.sh / .ps1    GitHub Release 远程安装入口
-bin/、lib/                   独立 npx 安装器
 scripts/install.cjs          安装与更新流程
 scripts/build-marketplace.cjs 自包含市场构建器
 scripts/publish-marketplace.cjs 分发分支发布入口（默认只显示计划）
@@ -182,7 +169,7 @@ plugins/markdown-preview/    可安装的插件包
 | [开发指南](docs/development.md) | 环境准备、代码结构、测试与安装更新 |
 | [兼容性说明](docs/compatibility.md) | Codex 文件打开行为与 MCP 接口 |
 | [发布指南](docs/releasing.md) | v1.0.0 标签、Release 资产和远程安装入口 |
-| [安装渠道与分发](docs/distribution.md) | 市场与 GitHub npx 安装、迁移、验证及发布 |
+| [安装渠道与分发](docs/distribution.md) | 市场安装、迁移、构建、验证及发布 |
 | [更新日志](CHANGELOG.md) | 版本变更记录 |
 | [Markdown 示例](plugins/markdown-preview/tests/fixtures/markdown-sample.md) | 渲染功能与浏览器测试样例 |
 
