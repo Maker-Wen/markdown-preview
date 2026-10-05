@@ -191,4 +191,4 @@ npm audit --prefix plugins/markdown-preview/runtime/renderer --omit=dev
 
 [验证工作流](../.github/workflows/validate.yml) 自动对 PR 和 `main` 分支推送，在 Node.js 22.12.0 和 24.x 上启用严格 engine 校验，运行现有 MCP、浏览器、安装器版本边界、安装器、发布包与远程安装器检查。检查失败时先定位依赖变化带来的影响；检查通过后，仍需维护者阅读差异并完成上述真实 Codex 复核，再决定合并和发版。组件检查不代表 Windows 或用户设备已经验证。
 
-当前流程不会自动合并 PR、发布插件或更新用户端安装。用户取得已发布的新版本仍需运行对应安装命令；依赖升级和漏洞处置不应隐含在版本号修改中。
+CI 不会自动合并 PR 或发布插件。Git 市场按启动检查或手动 `marketplace upgrade` 更新；Release 和本地渠道需重跑安装命令。依赖升级和漏洞处置不应隐含在版本号修改中。
