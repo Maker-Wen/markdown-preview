@@ -13,8 +13,9 @@ const { render, viewerHtml } = require('./render.cjs');
   const output = { name: path.basename(file), resourceUri: 'codex-resource://browser-a', bytes: Buffer.byteLength(text), text, ...rendered };
   const template = await viewerHtml();
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-browser-test-'));
-  const results = [], requests = [], pageErrors = [];
-  let browser;
+  const profile = path.join(directory, 'preferences-profile');
+  const results = [], requests = [], preferenceLoads = [], preferenceRequests = [], pageErrors = [];
+  let browser, preferenceContext;
   const bootstrap = value => template.replace('<script>', () => '<script>window.openai=' + JSON.stringify({ toolOutput: value }).replace(/</g, '\\u003c') + ';</script><script>');
   const event = (page, globals) => page.evaluate(value => {
     Object.assign(window.openai, value);
@@ -356,11 +357,142 @@ const { render, viewerHtml } = require('./render.cjs');
         return { fileLinks: targets.length, webLinks: 3, errorsVisible: true, parentValidated: true };
       } finally { await host.close(); }
     });
-    await check('Self-contained UI makes no network requests', async () => { assert.deepEqual(requests, []); });
+    // about:blank cannot provide localStorage. Serve only these two virtual pages
+    // through Playwright, so persistence uses a real origin without any server.
+    const preferenceOrigin = 'https://markdown-preview.test';
+    const preferenceText = '# Preference document\n\nPREFERENCE_DOCUMENT_READABLE\n\n## Section\n';
+    const preferenceOutput = { name: 'preference-a.md', resourceUri: 'codex-resource://preference-a', text: preferenceText,
+      bytes: Buffer.byteLength(preferenceText), ...await render(file, preferenceText) };
+    const preferencePages = new Map([
+      [preferenceOrigin + '/a.html', bootstrap(preferenceOutput)],
+      [preferenceOrigin + '/b.html', bootstrap({ ...preferenceOutput, name: 'preference-b.md', resourceUri: 'codex-resource://preference-b' })]
+    ]);
+    const servePreferences = async context => {
+      await context.route('**/*', route => {
+        const request = route.request(), html = preferencePages.get(request.url());
+        if (html && request.resourceType() === 'document') {
+          preferenceLoads.push(request.url());
+          return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
+        }
+        preferenceRequests.push(request.url());
+        return route.abort();
+      });
+    };
+    const openPreferencePage = async (context, document = 'a', viewport) => {
+      const opened = await context.newPage();
+      opened.on('pageerror', error => pageErrors.push(error.message));
+      if (viewport) await opened.setViewportSize(viewport);
+      await opened.goto(preferenceOrigin + '/' + document + '.html');
+      await opened.locator('#content').filter({ hasText: 'PREFERENCE_DOCUMENT_READABLE' }).waitFor();
+      return opened;
+    };
+    const assertPreferences = async (opened, theme, color, tocVisible) => {
+      assert.equal(await opened.locator('#theme').inputValue(), theme);
+      await opened.waitForFunction(value => document.documentElement.dataset.theme === value, color);
+      assert.equal(await opened.locator('aside').isVisible(), tocVisible);
+      assert.equal(await opened.locator('#toggle-toc').getAttribute('aria-expanded'), String(tocVisible));
+    };
+    const storedPreferences = opened => opened.evaluate(() => ({
+      theme: localStorage.getItem('markdown-preview:theme'), toc: localStorage.getItem('markdown-preview:toc')
+    }));
+    const launchPreferences = async colorScheme => {
+      const context = await chromium.launchPersistentContext(profile, { headless: true,
+        executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined,
+        viewport: { width: 1280, height: 900 }, colorScheme, offline: true });
+      await servePreferences(context);
+      return context;
+    };
+    preferenceContext = await launchPreferences('light');
+    let preferencePage;
+    await check('Settings survive refresh and reopening another document', async () => {
+      preferencePage = await openPreferencePage(preferenceContext);
+      await assertPreferences(preferencePage, 'system', 'light', true);
+      assert.deepEqual(await storedPreferences(preferencePage), { theme: null, toc: null });
+      await preferencePage.locator('#theme').selectOption('dark');
+      await preferencePage.locator('#toggle-toc').click();
+      await preferencePage.reload();
+      await assertPreferences(preferencePage, 'dark', 'dark', false);
+      await preferencePage.close();
+      preferencePage = await openPreferencePage(preferenceContext, 'b');
+      assert.equal(await preferencePage.locator('#name').textContent(), 'preference-b.md');
+      await assertPreferences(preferencePage, 'dark', 'dark', false);
+      await preferencePage.locator('#theme').selectOption('light');
+      await preferencePage.reload();
+      await assertPreferences(preferencePage, 'light', 'light', false);
+      return { refresh: true, reopenedDifferentDocument: true, stored: await storedPreferences(preferencePage) };
+    });
+    await check('Explicit TOC preference survives narrow and wide reopenings', async () => {
+      await preferencePage.close();
+      preferencePage = await openPreferencePage(preferenceContext, 'a', { width: 390, height: 844 });
+      await assertPreferences(preferencePage, 'light', 'light', false);
+      await preferencePage.locator('#toggle-toc').click();
+      await preferencePage.reload();
+      await assertPreferences(preferencePage, 'light', 'light', true);
+      await preferencePage.close();
+      preferencePage = await openPreferencePage(preferenceContext, 'b');
+      await assertPreferences(preferencePage, 'light', 'light', true);
+      await preferencePage.locator('#toggle-toc').click();
+      await preferencePage.reload();
+      await assertPreferences(preferencePage, 'light', 'light', false);
+      return { narrowVisible: true, wideVisible: true, wideHidden: true };
+    });
+    await check('System mode survives browser restart and follows system changes', async () => {
+      await preferencePage.locator('#theme').selectOption('system');
+      await preferencePage.emulateMedia({ colorScheme: 'dark' });
+      await assertPreferences(preferencePage, 'system', 'dark', false);
+      assert.deepEqual(await storedPreferences(preferencePage), { theme: 'system', toc: 'hidden' });
+      await preferenceContext.close();
+      preferenceContext = await launchPreferences('dark');
+      preferencePage = await openPreferencePage(preferenceContext, 'a');
+      await assertPreferences(preferencePage, 'system', 'dark', false);
+      await preferencePage.emulateMedia({ colorScheme: 'light' });
+      await assertPreferences(preferencePage, 'system', 'light', false);
+      assert.deepEqual(await storedPreferences(preferencePage), { theme: 'system', toc: 'hidden' });
+      return { persistedProfileRestart: true, selectedMode: 'system', systemChangesFollowed: true };
+    });
+    await preferenceContext.close();
+    preferenceContext = undefined;
+    await check('Invalid and unavailable storage leave reading controls usable', async () => {
+      const cases = ['invalid', 'denied', 'quota'];
+      for (const mode of cases) {
+        const storageContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'light', offline: true });
+        try {
+          await servePreferences(storageContext);
+          await storageContext.addInitScript(mode => {
+            if (location.origin !== 'https://markdown-preview.test') return;
+            if (mode === 'denied') {
+              Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('TEST_STORAGE_DENIED', 'SecurityError'); } });
+            } else if (mode === 'invalid') {
+              localStorage.setItem('markdown-preview:theme', 'sepia');
+              localStorage.setItem('markdown-preview:toc', 'sometimes');
+            } else {
+              Storage.prototype.setItem = () => { throw new DOMException('TEST_STORAGE_QUOTA', 'QuotaExceededError'); };
+            }
+          }, mode);
+          const storagePage = await openPreferencePage(storageContext);
+          await assertPreferences(storagePage, 'system', 'light', false);
+          await storagePage.locator('#theme').selectOption('dark');
+          await storagePage.locator('#toggle-toc').click();
+          await assertPreferences(storagePage, 'dark', 'dark', true);
+          await storagePage.locator('#toggle-source').click();
+          assert.equal(await storagePage.locator('#source').textContent(), preferenceText);
+          assert.equal(await storagePage.locator('#source').isVisible(), true);
+          assert.equal(await storagePage.locator('#error').isVisible(), false);
+        } finally { await storageContext.close(); }
+      }
+      return { invalidValuesIgnored: true, storageDeniedUsable: true, quotaExceededUsable: true };
+    });
+    await check('Self-contained UI makes no network requests', async () => {
+      assert.deepEqual(requests, []);
+      assert.deepEqual(preferenceRequests, []);
+      return { offlineVirtualPageLoads: preferenceLoads.length, externalRequests: 0 };
+    });
     await check('No uncaught browser errors', async () => { assert.deepEqual(pageErrors, []); });
   } finally {
+    await preferenceContext?.close();
     await browser?.close();
-    await fs.writeFile(path.join(directory, 'results.json'), JSON.stringify({ file, results, requests, pageErrors }, null, 2));
+    await fs.rm(profile, { recursive: true, force: true });
+    await fs.writeFile(path.join(directory, 'results.json'), JSON.stringify({ file, results, requests, preferenceLoads, preferenceRequests, pageErrors }, null, 2));
     for (const result of results.filter(item => !item.pass)) console.log('DETAIL: ' + result.name + ': ' + result.error);
     console.log('Artifacts: ' + directory);
     if (results.some(result => !result.pass)) process.exitCode = 1;

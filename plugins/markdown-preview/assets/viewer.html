@@ -364,6 +364,28 @@
       let documentOutput;
       let generation = 0;
 
+      function readPreference(name, allowed) {
+        try {
+          const value = localStorage.getItem('markdown-preview:' + name);
+          return allowed.includes(value) ? value : null;
+        } catch {
+          return null;
+        }
+      }
+
+      function savePreference(name, value) {
+        try {
+          localStorage.setItem('markdown-preview:' + name, value);
+        } catch {
+          // Hosts may disable storage; the controls must still work in this page.
+        }
+      }
+
+      function setTocVisibility(visible) {
+        $('reader').dataset.toc = visible ? 'visible' : 'hidden';
+        $('toggle-toc').setAttribute('aria-expanded', String(visible));
+      }
+
       function refreshTheme() {
         const selected = $('theme').value;
         const dark = selected === 'dark' || (selected === 'system' && media.matches);
@@ -463,8 +485,8 @@
 
       $('toggle-toc').addEventListener('click', () => {
         const visible = $('reader').dataset.toc === 'hidden';
-        $('reader').dataset.toc = visible ? 'visible' : 'hidden';
-        $('toggle-toc').setAttribute('aria-expanded', String(visible));
+        setTocVisibility(visible);
+        savePreference('toc', visible ? 'visible' : 'hidden');
       });
 
       document.addEventListener('copy', event => {
@@ -508,14 +530,18 @@
         }
       });
 
-      $('theme').addEventListener('change', refreshTheme);
+      $('theme').addEventListener('change', () => {
+        savePreference('theme', $('theme').value);
+        refreshTheme();
+      });
       media.addEventListener('change', () => {
         if ($('theme').value === 'system') refreshTheme();
       });
-      if (matchMedia('(max-width:700px)').matches) {
-        $('reader').dataset.toc = 'hidden';
-        $('toggle-toc').setAttribute('aria-expanded', 'false');
-      }
+      $('theme').value = readPreference('theme', ['system', 'light', 'dark']) ?? 'system';
+      const savedToc = readPreference('toc', ['visible', 'hidden']);
+      setTocVisibility(savedToc === null
+        ? !matchMedia('(max-width:700px)').matches
+        : savedToc === 'visible');
       window.addEventListener('openai:set_globals', event => show(event.detail?.globals));
       refreshTheme();
       show();
