@@ -32,10 +32,11 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 
 ## 更新
 
-需要检查已注册市场的更新时，执行：
+需要检查已注册市场并安装更新时，执行：
 
 ```sh
 codex plugin marketplace upgrade markdown-preview-marketplace
+codex plugin add markdown-preview@markdown-preview-marketplace
 ```
 
 插件更新后重新打开预览；已有页面不保证立即载入新的插件代码。
