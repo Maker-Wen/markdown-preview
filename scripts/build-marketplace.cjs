@@ -68,10 +68,11 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 
 ## 更新
 
-Codex 启动时检查市场更新。手动更新：
+手动检查市场并安装更新：
 
 \`\`\`sh
 codex plugin marketplace upgrade markdown-preview-marketplace
+codex plugin add markdown-preview@markdown-preview-marketplace
 \`\`\`
 
 更新后重新打开预览或新聊天。
