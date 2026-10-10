@@ -19,7 +19,7 @@ codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
 codex plugin add markdown-preview@markdown-preview-marketplace
 ```
 
-更新方法见[完整安装说明](https://github.com/Maker-Wen/markdown-preview#安装)。本地源码安装见[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#本地源码安装)。
+更新方法见[更新说明](https://github.com/Maker-Wen/markdown-preview#更新)。本地源码安装见[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#本地源码安装)。
 
 ## 使用
 
@@ -32,14 +32,12 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 - 保留源码字符与换行的源码视图和选区复制。
 - 保存后自动更新正文、源码和目录，保留滚动位置、源码视图及目录设置。宿主不支持自动刷新时，页面会显示提示。
 - 点击“在浏览器打开”可在系统默认浏览器阅读，保留目录、公式、图表和代码高亮，并跟随当前文件保存自动刷新。浏览器页依赖当前 Codex 聊天的预览服务；本地文件链接请返回 Codex 打开。
-- 只读展示，禁用文档脚本、代码执行和文件导入。
-- 文档内标题链接支持页内跳转；跨文件标题链接只打开目标文件。
-- 本地文件和网页链接由宿主处理；本地文件链接需要 `openai/files` 扩展。
-- 实际处理能力取决于内容复杂度、可用内存和宿主限制。
+- 只读预览。
 
 ## 文档
 
-[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md)、[兼容性说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/compatibility.md)、[分发说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/distribution.md)和[插件发现与上架](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/plugin-discovery.md)。
+- [兼容性说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/compatibility.md)：渲染范围、链接行为与宿主要求。
+- [开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md)：环境准备、测试和本地源码安装。
 
 ## 作者
 
