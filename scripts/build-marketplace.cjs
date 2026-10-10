@@ -62,7 +62,7 @@ codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
 codex plugin add markdown-preview@markdown-preview-marketplace
 \`\`\`
 
-打开新聊天，在 Markdown 文件的查看器菜单选择 **Open in ChatGPT → Markdown Preview**。
+打开新聊天，在 Markdown 文件的查看器菜单选择 **Open in ChatGPT → Markdown Preview** 。
 
 保存已打开的文件后，正文、源码和目录自动更新，并保留阅读位置和目录设置。点击“在浏览器打开”可在默认浏览器中阅读；使用时保持当前 Codex 聊天开启。主题跟随系统，预览保持只读。
 
