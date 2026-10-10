@@ -27,7 +27,6 @@
     "category": "Productivity",
     "capabilities": [
       "MCP file viewer"
-    ],
-    "defaultPrompt": "使用 Markdown Preview 预览 Markdown 文档，查看 KaTeX 公式和 Mermaid 图表，并在保存后更新预览。"
+    ]
   }
 }
