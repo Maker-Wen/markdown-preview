@@ -1,13 +1,23 @@
 # Markdown Preview
 
-Markdown Preview 是 Codex 的 Markdown 文件查看器，支持 `.md` 和 `.markdown`，渲染基于 [Crossnote](https://github.com/shd101wyy/crossnote)。
+Markdown Preview 为 Codex 提供 Markdown 预览（Markdown preview），支持 `.md` 和 `.markdown`。在 Codex 文件标签页阅读文档，也可打开独立浏览器预览；保存 Markdown 后，正文、源码和目录自动更新。渲染基于 [Crossnote](https://github.com/shd101wyy/crossnote)。
 
 ## 功能
 
 - 标题目录、表格、任务列表和代码语法高亮。
 - KaTeX 数学公式、Mermaid 图表、本地图片，以及本地文件和外部链接。
 - 阅读与源码视图切换、选区复制，主题自动跟随系统。
+- 保存后更新预览，保留阅读位置、源码视图和目录设置。
+- 在默认浏览器阅读同一文件，适合分屏或另一块屏幕查看文档。
 - 只读展示，禁用文档脚本、代码执行和文件导入。
+
+## 预览截图
+
+以下截图展示实际浏览器阅读页，包含目录导航、KaTeX 公式、Mermaid 图表和代码高亮。
+
+![Markdown Preview 浏览器预览，浅色主题](docs/images/browser-preview-light.jpg)
+
+![Markdown Preview 浏览器预览，深色主题](docs/images/browser-preview-dark.jpg)
 
 ## 安装
 
@@ -18,33 +28,21 @@ codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
 codex plugin add markdown-preview@markdown-preview-marketplace
 ```
 
-也可使用远程 Release 脚本，需要 npm。脚本默认安装最新正式 Release，并校验下载摘要。
-
-macOS / Linux：
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.sh | sh
-```
-
-Windows PowerShell：
-
-```powershell
-irm https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/install-remote.ps1 | iex
-```
+需要从本地源码安装时，见[开发指南](docs/development.md#本地源码安装)。
 
 ## 更新
 
-Codex 0.160.0 在启动时后台检查 Git 市场。需要立即检查更新时，执行：
+需要检查已注册市场的更新时，执行：
 
 ```sh
 codex plugin marketplace upgrade markdown-preview-marketplace
 ```
 
-Release 脚本重复执行即可更新到最新正式版。更新后可重新打开预览；已有页面不保证立即刷新。
+插件更新后重新打开预览；已有页面不保证立即载入新的插件代码。
 
 ## 使用
 
-安装后打开新的 Codex 聊天，在 Markdown 文件的查看器菜单中选择 **Open in ChatGPT → Markdown Preview**。Codex 使用保存的首选查看器；选择 **Built-in** 可返回内置查看器。
+安装后打开新的 Codex 聊天，在 Markdown 文件的查看器菜单中选择 **Open in ChatGPT → Markdown Preview** 。Codex 使用保存的首选查看器；选择 **Built-in** 可返回内置查看器。
 
 ## 使用范围
 
@@ -60,8 +58,13 @@ Release 脚本重复执行即可更新到最新正式版。更新后可重新打
 - [开发指南](docs/development.md)：环境准备、测试和本地源码安装。
 - [兼容性说明](docs/compatibility.md)：Codex 查看器行为与宿主接口。
 - [分发说明](docs/distribution.md)：市场构建、更新和发布。
-- [发布指南](docs/releasing.md)：GitHub Release 与远程脚本。
+- [发布指南](docs/releasing.md)：维护者的 GitHub Release 与远程安装脚本流程。
+- [插件发现与上架](docs/plugin-discovery.md)：公开安装入口与官方目录评估。
 - [更新日志](CHANGELOG.md)与 [Markdown 示例](plugins/markdown-preview/tests/fixtures/markdown-sample.md)。
+
+## 作者
+
+[yomori](https://github.com/Maker-Wen) 维护本插件。问题和功能建议可提交到 [GitHub Issues](https://github.com/Maker-Wen/markdown-preview/issues)。
 
 ## 致谢
 
