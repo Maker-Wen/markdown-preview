@@ -69,28 +69,42 @@ async function build(options) {
 
   await fs.mkdir(options.output, { recursive: true });
   const stage = await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-release-'));
+  let artifacts;
   try {
     const packageRoot = path.join(stage, rootName);
     await fs.cp(ROOT, packageRoot, { recursive: true, filter: shouldCopy });
     await fs.rm(path.join(packageRoot, 'dist'), { recursive: true, force: true });
-    execFileSync('tar', ['-czf', outputs[0], '-C', stage, rootName], {
+    artifacts = await fs.mkdtemp(path.join(options.output, '.markdown-preview-release-'));
+    const prepared = outputs.map(file => path.join(artifacts, path.basename(file)));
+    execFileSync('tar', ['-czf', prepared[0], '-C', stage, rootName], {
       stdio: 'inherit', env: { ...process.env, COPYFILE_DISABLE: '1' }
     });
-    execFileSync('zip', ['-qr', outputs[1], rootName], { cwd: stage, stdio: 'inherit' });
+    execFileSync('zip', ['-qr', prepared[1], rootName], { cwd: stage, stdio: 'inherit' });
     const sums = [];
-    for (const file of outputs.slice(0, 2)) sums.push(`${await sha256(file)}  ${path.basename(file)}`);
-    await fs.writeFile(outputs[2], `${sums.join('\n')}\n`);
+    for (const file of prepared.slice(0, 2)) sums.push(`${await sha256(file)}  ${path.basename(file)}`);
+    await fs.writeFile(prepared[2], `${sums.join('\n')}\n`);
+    for (let i = 0; i < outputs.length; i += 1) await fs.rename(prepared[i], outputs[i]);
     return outputs;
   } finally {
     await fs.rm(stage, { recursive: true, force: true }).catch(() => {});
+    if (artifacts) await fs.rm(artifacts, { recursive: true, force: true }).catch(() => {});
   }
 }
 
+async function main(argv = process.argv.slice(2)) {
+  const options = parseArgs(argv);
+  if (options.help) {
+    console.log(usage());
+    return;
+  }
+  return build(options);
+}
+
 if (require.main === module) {
-  build(parseArgs(process.argv.slice(2))).catch(error => {
+  main().catch(error => {
     console.error(`发布包生成失败：${error.message}`);
     process.exitCode = 1;
   });
 }
 
-module.exports = { DEFAULT_VERSION, build, parseArgs, shouldCopy };
+module.exports = { DEFAULT_VERSION, build, main, parseArgs, shouldCopy };
