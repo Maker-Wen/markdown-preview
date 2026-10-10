@@ -42,6 +42,8 @@ jobs:
         run: |
           npm test --prefix plugins/markdown-preview
           npm run test:browser --prefix plugins/markdown-preview
+          npm run test:live --prefix plugins/markdown-preview
+          npm run test:open-browser --prefix plugins/markdown-preview
           node --test tests/test-node-version.cjs
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
