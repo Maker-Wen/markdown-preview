@@ -55,10 +55,13 @@ npm run test:open-browser --prefix plugins/markdown-preview
 node --test tests/test-node-version.cjs tests/test-installer.cjs
 node tests/test-release-package.cjs
 node tests/test-remote-installer.cjs
+node --test tests/test-remote-installer-powershell.cjs
 git diff --check
 ```
 
 已有兼容 Chromium 时，可通过 `PLAYWRIGHT_EXECUTABLE_PATH` 指定可执行文件，再运行浏览器测试。
+
+PowerShell 远程安装器测试使用本地 ZIP 和网络夹具，需要 `pwsh`；可通过 `MARKDOWN_PREVIEW_TEST_PWSH` 指定可执行文件。未提供 PowerShell 时明确跳过；Windows CI 设置 `MARKDOWN_PREVIEW_REQUIRE_PWSH=1`，缺少该环境会失败。
 
 服务测试覆盖 MCP 与渲染逻辑；浏览器测试覆盖图表、公式、目录、主题、源码复制和链接通信。宿主中的查看器选择及普通 Markdown 点击按[兼容性说明](compatibility.md)验收。市场产物测试见[市场分发](distribution.md#验证)。
 

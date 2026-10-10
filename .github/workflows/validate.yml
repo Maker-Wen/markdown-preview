@@ -90,11 +90,9 @@ jobs:
           path: dist
       - name: Verify PowerShell installer argument forwarding
         if: runner.os == 'Windows'
-        run: |
-          ./install-remote.ps1 --help
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./install-remote.ps1 --dry-run --install-dir "${{ runner.temp }}/markdown-preview-remote-dry-run" --codex "${{ runner.temp }}/markdown-preview-codex/node_modules/@openai/codex/bin/codex.js"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          MARKDOWN_PREVIEW_REQUIRE_PWSH: '1'
+        run: node --test tests/test-remote-installer-powershell.cjs
       - name: Verify and unpack the shared distribution
         run: node -e "const fs=require('node:fs');const crypto=require('node:crypto');const file='dist/markdown-preview-marketplace.tgz';const expected=fs.readFileSync('dist/marketplace.SHA256SUMS','utf8').split(/\s+/)[0];if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==expected)throw Error('marketplace checksum mismatch');require('tar').x({file,cwd:'dist',strict:true}).catch(e=>{console.error(e);process.exitCode=1;})"
       - name: Install and start the final Codex plugin cache
