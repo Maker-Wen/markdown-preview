@@ -9,7 +9,7 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const DEFAULT_VERSION = '1.0.0';
+const DEFAULT_VERSION = '0.1.0';
 const EXCLUDED = new Set(['.git', '.archify', 'node_modules', 'dist', '.DS_Store', 'playwright-report', 'test-results', 'coverage']);
 
 function usage() {

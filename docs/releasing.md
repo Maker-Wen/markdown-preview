@@ -6,7 +6,7 @@ GitHub Release 提供源码归档和远程安装所需的校验文件。自包�
 
 在已合并的源码提交上发布，确认工作区干净，并完成[开发指南](development.md#测试)中的测试和生产依赖审计。
 
-同步两份插件清单、服务层与 renderer 的包及锁文件根版本、MCP 服务上报版本和 `CHANGELOG.md`。确认 `.agents/plugins/marketplace.json` 仍指向 `./plugins/markdown-preview`，市场名称为 `markdown-preview-marketplace`。
+同步两份插件清单、仓库根目录与服务层及 renderer 的包和锁文件根版本、MCP 服务上报版本、页面握手的 `appInfo.version`、安装器自检客户端版本、发布打包器的默认版本，以及 `CHANGELOG.md`。确认 `.agents/plugins/marketplace.json` 仍指向 `./plugins/markdown-preview`，市场名称为 `markdown-preview-marketplace`。
 
 后续命令从仓库根目录执行，版本取自插件清单：
 
