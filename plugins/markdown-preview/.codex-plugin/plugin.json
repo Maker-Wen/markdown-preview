@@ -1,19 +1,33 @@
 {
   "name": "markdown-preview",
-  "version": "1.0.0+marketplace.e0817958abec29b8",
-  "description": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。",
+  "version": "1.0.0+marketplace.c0974b5443396ae6",
+  "description": "Codex Markdown 预览，支持 KaTeX、Mermaid、目录、代码高亮和保存后更新，可在浏览器阅读。",
   "author": {
-    "name": "Local developer"
+    "name": "yomori",
+    "url": "https://github.com/Maker-Wen"
   },
+  "homepage": "https://github.com/Maker-Wen/markdown-preview",
+  "repository": "https://github.com/Maker-Wen/markdown-preview",
+  "keywords": [
+    "codex",
+    "markdown",
+    "markdown-preview",
+    "file-viewer",
+    "katex",
+    "mermaid",
+    "live-preview",
+    "browser-preview"
+  ],
   "interface": {
     "displayName": "Markdown Preview",
-    "shortDescription": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。",
-    "longDescription": "在 Codex 文件标签页中预览 Markdown 文档，提供目录导航、表格、代码高亮、KaTeX 公式、Mermaid 图表、本地图片和源码查看。",
-    "developerName": "Local developer",
+    "shortDescription": "Markdown 预览：公式、图表与保存后更新",
+    "longDescription": "在 Codex 文件标签页中预览 .md 和 .markdown，支持目录导航、表格、代码高亮、KaTeX 公式、Mermaid 图表、本地图片和源码查看。保存 Markdown 后自动更新，并保留阅读位置及视图设置；也可在默认浏览器阅读，主题自动跟随系统。",
+    "developerName": "yomori",
+    "websiteURL": "https://github.com/Maker-Wen/markdown-preview",
     "category": "Productivity",
     "capabilities": [
       "MCP file viewer"
     ],
-    "defaultPrompt": "使用 Markdown Preview 预览 Markdown 文档。"
+    "defaultPrompt": "使用 Markdown Preview 预览 Markdown 文档，查看 KaTeX 公式和 Mermaid 图表，并在保存后更新预览。"
   }
 }

@@ -15,6 +15,7 @@
         --muted: #677383;
         --line: #dfe3e9;
         --accent: #235bcc;
+        --error: #a63b2c;
         font: 15px/1.75 system-ui,-apple-system,sans-serif;
       }
 
@@ -26,6 +27,7 @@
         --muted: #aab4c2;
         --line: #383f49;
         --accent: #9cbbff;
+        --error: #f6a99b;
       }
 
       * {
@@ -46,47 +48,74 @@
         overflow: hidden;
       }
 
-      header {
+      body > header {
         display: flex;
-        gap: 12px;
-        align-items: center;
-        padding: 12px 18px;
-        border-bottom: 1px solid var(--line);
         flex-wrap: wrap;
+        min-width: 0;
+        gap: 16px;
+        align-items: center;
+        padding: 6px 20px;
+        border-bottom: 1px solid var(--line);
       }
 
-      #name {
-        margin-right: auto;
-        font-weight: 650;
+      body > header > #name {
+        flex: 1 1 auto;
+        min-width: 0;
+        max-width: 100%;
+        white-space: normal;
         overflow-wrap: anywhere;
+        font-size: 15px;
+        font-weight: 600;
       }
 
-      #status {
-        font-size: 12px;
-        color: #278a62;
+      body > header > .reader-actions {
+        display: flex;
+        flex: 0 1 auto;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
       }
 
-      button,
-      select {
+      body > header > .reader-actions > button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 32px;
+        flex-shrink: 0;
         font: inherit;
         font-size: 13px;
+        font-weight: 500;
+        line-height: 1;
+        white-space: nowrap;
         border: 1px solid var(--line);
         background: var(--paper);
         color: var(--ink);
         border-radius: 6px;
-        padding: 4px 9px;
+        padding: 0 10px;
         cursor: pointer;
       }
 
-      button:hover {
+      body > header > .reader-actions > button:hover,
+      body > header > .reader-actions > button[aria-pressed=true] {
         background: var(--side);
+        color: var(--ink);
       }
 
-      button:focus-visible,
-      select:focus-visible,
+      body > header > .reader-actions > button:focus-visible,
       a:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 3px;
+      }
+
+      body > header > .reader-actions > button:disabled {
+        opacity: .55;
+        cursor: default;
+      }
+
+      body > header > .reader-actions > button[hidden] {
+        display: none;
       }
 
       .reader {
@@ -116,12 +145,12 @@
         color: var(--muted);
       }
 
-      #toc a {
+      body > .reader > aside > #toc a {
         color: var(--muted);
         text-decoration: none;
       }
 
-      #toc a:hover {
+      body > .reader > aside > #toc a:hover {
         color: var(--accent);
       }
 
@@ -132,19 +161,19 @@
       }
 
       article,
-      #source {
+      body > .reader > main > pre#source {
         max-width: 980px;
         margin: 0 auto;
-        padding: 30px 38px 90px;
+        padding: 16px 38px 90px;
         overflow-wrap: anywhere;
       }
 
-      #source {
+      body > .reader > main > pre#source {
         white-space: pre-wrap;
         font: 14px/1.8 ui-monospace,monospace;
       }
 
-      pre#source > span {
+      body > .reader > main > pre#source > span {
         display: block;
         min-height: 1.8em;
       }
@@ -259,13 +288,20 @@
         font-size: 13px;
       }
 
-      #error {
+      body > .reader > main > p#error {
         margin: 12px 20px;
         color: #c34837;
         white-space: pre-wrap;
       }
 
-      #detail {
+      body > .reader > main > p#status {
+        margin: 12px 20px;
+        color: var(--error);
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+
+      body > .reader > main > div#detail {
         padding: 10px 20px;
         color: var(--muted);
         font-size: 11px;
@@ -315,28 +351,37 @@
         }
 
         article,
-        #source {
-          padding: 24px 20px 70px;
+        body > .reader > main > pre#source {
+          padding: 16px 20px 70px;
         }
 
-        header {
-          padding: 10px 14px;
-          gap: 8px;
+        body > header {
+          padding: 6px 14px;
+          gap: 12px;
+        }
+
+        body > header > #name {
+          font-size: 14px;
+        }
+      }
+
+      @media (any-pointer: coarse) {
+        body > header > .reader-actions > button {
+          min-height: 44px;
         }
       }
     </style>
   </head>
   <body>
-    <header>
+    <header aria-label="阅读操作">
       <span id="name">Markdown</span>
-      <span id="status" role="status">正在载入…</span>
-      <button id="toggle-toc" aria-expanded="true">目录</button>
-      <button id="toggle-source" aria-pressed="false">查看源码</button>
-      <select id="theme" aria-label="阅读主题">
-        <option value="system">跟随系统</option>
-        <option value="light">浅色</option>
-        <option value="dark">深色</option>
-      </select>
+      <div class="reader-actions">
+        <button id="toggle-toc" aria-controls="toc" aria-expanded="true">目录</button>
+        <button id="toggle-source" aria-pressed="false">
+          <span class="button-label">查看源码</span>
+        </button>
+        <button id="open-browser" disabled>在浏览器打开</button>
+      </div>
     </header>
     <div class="reader" id="reader">
       <aside aria-label="文档目录">
@@ -345,6 +390,7 @@
       </aside>
       <main id="main">
         <p id="error" role="alert" hidden></p>
+        <p id="status" role="status" hidden></p>
         <article id="content" class="markdown-preview crossnote"></article>
         <pre id="source" aria-label="Markdown 源码" hidden></pre>
         <div id="detail"></div>
@@ -352,173 +398,13 @@
     </div>
     <script>/* BUNDLED_HOST_BRIDGE */</script>
     <script>/* BUNDLED_MERMAID */</script>
+    <script>/* BUNDLED_READER */</script>
     <script>
-      'use strict';
-
-      // Capture the shell before rendering headings that may use the same IDs.
+      // Capture the shell before document headings can reuse its IDs.
       const nodes = new Map(
         Array.from(document.querySelectorAll('[id]'), node => [node.id, node])
       );
-      const $ = id => nodes.get(id);
-      const media = matchMedia('(prefers-color-scheme: dark)');
-      let documentOutput;
-      let generation = 0;
-
-      function refreshTheme() {
-        const selected = $('theme').value;
-        const dark = selected === 'dark' || (selected === 'system' && media.matches);
-        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: 'strict',
-          theme: dark ? 'dark' : 'default'
-        });
-        if (documentOutput) show({ toolOutput: documentOutput });
-      }
-
-      function setError(message) {
-        $('error').textContent = message;
-        $('error').hidden = !message;
-      }
-
-      function showSource(text) {
-        const fragment = document.createDocumentFragment();
-        const lines = text.match(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+$/g) || [''];
-        if (/[\r\n]$/.test(text)) lines.push('');
-        for (const line of lines) {
-          const span = document.createElement('span');
-          span.textContent = line;
-          fragment.append(span);
-        }
-        $('source').replaceChildren(fragment);
-      }
-
-      function setSourceMode(source) {
-        $('source').hidden = !source;
-        $('content').hidden = source;
-        $('toggle-source').textContent = source ? '返回阅读' : '查看源码';
-        $('toggle-source').setAttribute('aria-pressed', String(source));
-      }
-
-      function showReadError(message) {
-        generation++;
-        documentOutput = null;
-        $('status').textContent = '读取失败';
-        setError(message);
-        $('content').replaceChildren();
-        $('toc').replaceChildren();
-        $('source').textContent = '';
-      }
-
-      async function renderDiagrams(id = generation) {
-        if ($('content').hidden) return;
-        try {
-          await mermaid.run({ nodes: $('content').querySelectorAll('.mermaid') });
-        } catch {
-          if (id === generation) {
-            setError('有一张图表无法渲染，可切换到源码检查语法。');
-          }
-        }
-      }
-
-      async function show(globals = window.openai) {
-        const output = globals?.toolOutput ?? window.openai?.toolOutput;
-        const response = globals?.toolResponseMetadata ?? window.openai?.toolResponseMetadata;
-        if (response?.status === 'error' || output?.error) {
-          showReadError(
-            typeof output?.error === 'string'
-              ? output.error
-              : '无法读取文档，请关闭后重新打开。'
-          );
-          return;
-        }
-        if (!output) return;
-        if (
-          typeof output.text !== 'string' ||
-          typeof output.name !== 'string' ||
-          typeof output.html !== 'string' ||
-          !Number.isFinite(output.bytes)
-        ) {
-          showReadError('插件返回了无效的文档内容，请关闭后重新打开。');
-          return;
-        }
-
-        const id = ++generation;
-        const sameFile = documentOutput?.resourceUri === output.resourceUri;
-        const scroll = sameFile ? $('main').scrollTop : 0;
-        documentOutput = output;
-        $('name').textContent = output.name;
-        document.title = output.name + ' · Markdown Preview';
-        showSource(output.text);
-        $('detail').textContent = output.bytes.toLocaleString() + ' 字节';
-        setError('');
-        $('content').innerHTML = output.html;
-        $('toc').innerHTML = output.toc || '<p>此文档没有标题。</p>';
-        $('status').textContent = '✓ 增强阅读';
-        $('main').scrollTop = scroll;
-        await renderDiagrams(id);
-        if (id !== generation) return;
-        $('main').scrollTo({ top: scroll, behavior: 'instant' });
-      }
-
-      $('toggle-toc').addEventListener('click', () => {
-        const visible = $('reader').dataset.toc === 'hidden';
-        $('reader').dataset.toc = visible ? 'visible' : 'hidden';
-        $('toggle-toc').setAttribute('aria-expanded', String(visible));
-      });
-
-      document.addEventListener('copy', event => {
-        const selection = window.getSelection();
-        if (!selection?.rangeCount || selection.isCollapsed || !event.clipboardData) return;
-        const range = selection.getRangeAt(0);
-        if (!$('source').contains(range.commonAncestorContainer)) return;
-        event.clipboardData.setData('text/plain', range.cloneContents().textContent);
-        event.preventDefault();
-      });
-
-      $('toggle-source').addEventListener('click', () => {
-        const source = $('source').hidden;
-        setSourceMode(source);
-        if (!source) renderDiagrams();
-      });
-
-      document.addEventListener('click', async event => {
-        const link = event.target.closest('a[href]');
-        if (!link) return;
-        event.preventDefault();
-        const documentAtClick = documentOutput;
-        const href = link.getAttribute('href');
-        try {
-          setError('');
-          if (link.dataset.linkError) throw new Error(link.dataset.linkError);
-          if (link.dataset.filePath) {
-            await window.markdownHost.openFile(link.dataset.filePath);
-          } else if (href.startsWith('#')) {
-            const id = decodeURIComponent(href.slice(1));
-            const heading = $('content').querySelector('[id="' + CSS.escape(id) + '"]');
-            if (!heading) throw new Error('没有找到链接指向的标题。');
-            heading.scrollIntoView({ block: 'start' });
-          } else if (/^https:\/\//i.test(href) && typeof window.openai?.openExternal === 'function') {
-            await window.openai.openExternal({ href });
-          } else {
-            await window.markdownHost.openLink(href);
-          }
-        } catch (error) {
-          if (documentOutput === documentAtClick) setError('无法打开链接：' + error.message);
-        }
-      });
-
-      $('theme').addEventListener('change', refreshTheme);
-      media.addEventListener('change', () => {
-        if ($('theme').value === 'system') refreshTheme();
-      });
-      if (matchMedia('(max-width:700px)').matches) {
-        $('reader').dataset.toc = 'hidden';
-        $('toggle-toc').setAttribute('aria-expanded', 'false');
-      }
-      window.addEventListener('openai:set_globals', event => show(event.detail?.globals));
-      refreshTheme();
-      show();
+      initializeReader({ nodes, host: window.markdownHost, mermaid });
     </script>
   </body>
 </html>

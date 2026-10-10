@@ -1,6 +1,22 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "markdown-preview",
-  "version": "1.0.0+marketplace.e0817958abec29b8",
-  "description": "在 Codex 中增强预览 Markdown，支持目录、公式、流程图与代码高亮。"
+  "version": "1.0.0+marketplace.c0974b5443396ae6",
+  "description": "Codex Markdown 预览，支持 KaTeX、Mermaid、目录、代码高亮和保存后更新，可在浏览器阅读。",
+  "author": {
+    "name": "yomori",
+    "url": "https://github.com/Maker-Wen"
+  },
+  "homepage": "https://github.com/Maker-Wen/markdown-preview",
+  "repository": "https://github.com/Maker-Wen/markdown-preview",
+  "keywords": [
+    "codex",
+    "markdown",
+    "markdown-preview",
+    "file-viewer",
+    "katex",
+    "mermaid",
+    "live-preview",
+    "browser-preview"
+  ]
 }
