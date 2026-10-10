@@ -2,12 +2,14 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL, fileURLToPath } = require('node:url');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const { readRegularFile } = require('./files.cjs');
 const crossnotePath = require.resolve('crossnote', { paths: [path.join(__dirname, '../runtime/renderer')] });
 const { Notebook, MarkdownEngine, utility } = require(crossnotePath);
 const cheerio = require(require.resolve('cheerio', { paths: [path.dirname(crossnotePath)] }));
 const build = utility.getCrossnoteBuildDirectory();
 const notebooks = new Map();
+const renderContext = new AsyncLocalStorage();
 const escape = value => String(value).replace(/[&<>"']/g, x => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[x]));
 const imageTypes = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -41,10 +43,23 @@ async function notebookFor(root) {
     alwaysShowBacklinksInPreview: false, enableEmojiSyntax: false,
     mathRenderingOption: 'KaTeX', katexConfig: { trust: false, strict: 'warn' },
     mermaidConfig: { securityLevel: 'strict' },
-    parserConfig: { onWillParseMarkdown: async text => text.replace(/@import\b/g, '&#64;import')
-      .replace(/^([^\n]*!\[[^\n]*)$/gm, '$1 <!-- preview-image -->').replace(/!\[\[/g, '\\!\\[\\['),
-      onDidParseMarkdown: async html => html }
+    parserConfig: { onWillParseMarkdown: async text => {
+      const marker = renderContext.getStore();
+      // Crossnote imports standalone images/wiki embeds as well as @import directives.
+      // Hide imports everywhere, including HTML comments, until preprocessing has finished.
+      return text.replace(/<!--(?=\s+@import\b)/g, '<' + marker + '!--')
+        .replace(/@import\b/g, '@' + marker + 'import')
+        .replaceAll('![[', '!' + marker + '[[')
+        .replace(/^([^\S\n]*(?:>+[^\S\n]?)*[^\S\n]*)(!\[)/gm,
+        (_, prefix, opening) => prefix + opening[0] + marker + opening.slice(1));
+    } }
   } });
+  const renderMarkdown = notebook.renderMarkdown;
+  notebook.renderMarkdown = function (text, options) {
+    // Restore our unique marker before Markdown parses code, entities, escapes or attributes.
+    // The context belongs to this render, even when the cached notebook renders concurrently.
+    return renderMarkdown.call(this, text.replaceAll(renderContext.getStore(), ''), options);
+  };
   const validateLink = notebook.md.validateLink;
   notebook.md.validateLink = href => /^file:\/\/(?:\/|localhost\/)/i.test(href) || validateLink(href);
   const linkOpen = notebook.md.renderer.rules.link_open;
@@ -54,16 +69,6 @@ async function notebookFor(root) {
     return linkOpen ? linkOpen(tokens, index, options, env, renderer) : renderer.renderToken(tokens, index, options);
   };
   notebook.md.core.ruler.push('readonly-fences', state => {
-    const restore = tokens => {
-      for (const token of tokens) {
-        if (token.children) restore(token.children);
-        if (['fence', 'colon_fence', 'code_inline', 'code_block'].includes(token.type)) {
-          token.content = token.content.replace(/&#64;import/g, '@import')
-            .replace(/ <!-- preview-image -->/g, '').replace(/\\!\\\[\\\[/g, '![[');
-        }
-      }
-    };
-    restore(state.tokens);
     for (const token of state.tokens) {
       if (token.type === 'fence' || token.type === 'colon_fence') {
         const language = (token.info.trim().match(/^[a-zA-Z0-9_-]+/) || ['text'])[0];
@@ -74,7 +79,6 @@ async function notebookFor(root) {
   notebook.md.renderer.rules.html_block = (tokens, i) => /^<p data-source-line="\d+" class="empty-line final-line end-of-document" style="margin:0;"><\/p>\s*$/.test(tokens[i].content) ? '' : escape(tokens[i].content);
   notebook.md.renderer.rules.html_inline = (tokens, i) => {
     const html = tokens[i].content;
-    if (html === '<!-- preview-image -->') return '';
     if (/^<input type="checkbox" class="task-list-item-checkbox"(?: data-source-line="\d+")?\s*(?:checked)?>$/.test(html)) return html.replace('>', ' disabled>');
     return /^<\/?span>$/.test(html) ? html : escape(html);
   };
@@ -86,10 +90,17 @@ async function render(file, text) {
   const root = path.dirname(file);
   const notebook = await notebookFor(root);
   const engine = new MarkdownEngine({ notebook, filePath: file });
+  // An absent format-character sequence survives preprocessing without changing heading slugs.
+  // Exclude raw and single-pass decoded sequences, so restoration cannot eat authored entities.
+  const decodedText = notebook.md.utils.unescapeAll(text);
+  let marker = '\u2063'.repeat(16);
+  while (text.includes(marker) || decodedText.includes(marker)) marker += marker;
   // Crossnote treats an empty string as a request to reread its file.
-  const result = await engine.parseMD(text === '' ? '\n' : text, { isForPreview: true, useRelativeFilePath: false,
-    hideFrontMatter: false, runAllCodeChunks: false, triggeredBySave: false, vscodePreviewPanel: {} });
-  const $ = cheerio.load(result.html, {}, false);
+  const result = await renderContext.run(marker, () => engine.parseMD(text === '' ? '\n' : text, {
+    isForPreview: true, useRelativeFilePath: false,
+    hideFrontMatter: false, runAllCodeChunks: false, triggeredBySave: false, vscodePreviewPanel: {} }));
+  // Front matter tables can bypass renderMarkdown.
+  const $ = cheerio.load(result.html.replaceAll(marker, ''), {}, false);
   for (const img of $('img').toArray()) {
     const src = $(img).attr('src') || '';
     try {
@@ -150,7 +161,7 @@ async function render(file, text) {
   return { html: $.html(), toc: toc.children().length ? $.html(toc) : '' };
 }
 
-async function viewerHtml() {
+async function viewerHtml({ hostBridge: suppliedBridge } = {}) {
   const template = await fs.readFile(path.join(__dirname, '../assets/viewer.html'), 'utf8');
   let katex = await fs.readFile(path.join(build, 'dependencies/katex/katex.min.css'), 'utf8');
   const fonts = [...new Set([...katex.matchAll(/url\((fonts\/[^)]+\.woff2)\)/g)].map(x => x[1]))];
@@ -163,9 +174,11 @@ async function viewerHtml() {
   const styles = ['styles/prism_theme/github.css', 'styles/markdown-it-admonition.css', 'styles/markdown-it-callout.css'];
   const css = (await Promise.all(styles.map(file => fs.readFile(path.join(build, file), 'utf8')))).join('\n') + katex;
   const mermaid = await fs.readFile(path.join(build, 'dependencies/mermaid/mermaid.min.js'), 'utf8');
-  const hostBridge = await fs.readFile(path.join(__dirname, '../assets/host-bridge.js'), 'utf8');
+  const hostBridge = suppliedBridge ?? await fs.readFile(path.join(__dirname, '../assets/host-bridge.js'), 'utf8');
+  const reader = await fs.readFile(path.join(__dirname, '../assets/reader.js'), 'utf8');
   return template.replace('/* BUNDLED_STYLES */', () => css.replace(/<\/style/gi, '<\\/style'))
     .replace('/* BUNDLED_HOST_BRIDGE */', () => hostBridge.replace(/<\/script/gi, '<\\/script'))
-    .replace('/* BUNDLED_MERMAID */', () => mermaid.replace(/<\/script/gi, '<\\/script'));
+    .replace('/* BUNDLED_MERMAID */', () => mermaid.replace(/<\/script/gi, '<\\/script'))
+    .replace('/* BUNDLED_READER */', () => reader.replace(/<\/script/gi, '<\\/script'));
 }
 module.exports = { render, viewerHtml };

@@ -6,7 +6,7 @@
   let initialized;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 
-  function request(method, params) {
+  function request(method, params, timeoutMs = 10000) {
     if (window.parent === window) return Promise.reject(new Error('此页面没有可用的文件宿主。'));
     return new Promise((resolve, reject) => {
       const id = `${requestPrefix}${++nextId}`;
@@ -30,7 +30,7 @@
           finish(new Error('宿主返回了无效的响应。'));
         }
       };
-      const timer = setTimeout(() => finish(new Error('等待文件宿主响应超时。')), 10000);
+      const timer = setTimeout(() => finish(new Error('等待文件宿主响应超时。')), timeoutMs);
       window.addEventListener('message', onMessage);
       try {
         window.parent.postMessage({ jsonrpc: '2.0', id, method, params }, '*');
@@ -59,6 +59,75 @@
   }
 
   window.markdownHost = {
+    // Bind future inputs before reading the initial value. Each page connects once;
+    // pagehide pauses document watches, but must keep receiving host inputs.
+    connect(onDocument) {
+      function documentFromGlobals(globals) {
+        // Partial notifications must not restore an older initial host output.
+        if (!globals || (!Object.hasOwn(globals, 'toolOutput')
+          && globals.toolResponseMetadata?.status !== 'error')) return;
+        const output = globals.toolOutput ?? window.openai?.toolOutput;
+        const response = globals.toolResponseMetadata ?? window.openai?.toolResponseMetadata;
+        if (response?.status === 'error') {
+          return new Error(typeof output?.error === 'string'
+            ? output.error : '无法读取文档，请关闭后重新打开。');
+        }
+        return output;
+      }
+
+      window.addEventListener('openai:set_globals', event => {
+        const output = documentFromGlobals(event.detail?.globals);
+        if (output !== undefined) onDocument(output);
+      });
+      return {
+        // Read getters directly: the host may expose these on its prototype.
+        initialDocument: documentFromGlobals({
+          toolOutput: window.openai?.toolOutput,
+          toolResponseMetadata: window.openai?.toolResponseMetadata
+        })
+      };
+    },
+    async openBrowser(file, preferences) {
+      const capabilities = await initialize();
+      if (!isObject(capabilities?.serverTools)) {
+        throw new Error('当前宿主不支持在浏览器打开，请更新 Codex 后重试。');
+      }
+      const result = await request('tools/call', {
+        name: 'markdown_preview_open_browser', arguments: { file, preferences }
+      }, 60000);
+      if (result.isError === true) {
+        throw new Error(result.content?.find(item => item.type === 'text')?.text || '无法打开浏览器。');
+      }
+      if (typeof result.structuredContent?.url !== 'string') throw new Error('宿主未返回有效的浏览器地址。');
+      return result.structuredContent;
+    },
+    async refreshDocument(watchId, revision) {
+      const capabilities = await initialize();
+      if (!isObject(capabilities?.serverTools)) {
+        const error = new Error('当前宿主不支持自动刷新，请关闭后重新打开预览以更新内容。');
+        error.unsupported = true;
+        throw error;
+      }
+      const result = await request('tools/call', {
+        name: 'markdown_preview_refresh', arguments: { watchId, revision }
+      });
+      if (result.isError === true) {
+        const error = new Error(result.content?.find(item => item.type === 'text')?.text || '无法刷新文档。');
+        error.code = result.structuredContent?.errorCode;
+        throw error;
+      }
+      const output = result.structuredContent;
+      if (!isObject(output) || output.watchId !== watchId || !Number.isInteger(output.revision)
+        || output.revision < revision) throw new Error('宿主返回了无效的文档更新。');
+      return output;
+    },
+    async reopenDocument(file) {
+      const result = await request('tools/call', { name: 'markdown_preview_open', arguments: { file } });
+      if (result.isError === true) {
+        throw new Error(result.content?.find(item => item.type === 'text')?.text || '无法重新读取文档。');
+      }
+      return result.structuredContent;
+    },
     async openFile(path) {
       if (typeof path !== 'string' || !path.length || path.includes('\0')) {
         throw new Error('文件路径无效。');
@@ -71,6 +140,11 @@
       if (result.isError === true) throw new Error('宿主未能打开此文件。');
     },
     async openLink(url) {
+      // Enter the existing HTTPS shortcut before any capability negotiation.
+      if (typeof url === 'string' && /^https:\/\//i.test(url)
+        && typeof window.openai?.openExternal === 'function') {
+        return window.openai.openExternal({ href: url });
+      }
       if (typeof url !== 'string' || !url.length || url.includes('\0')) throw new Error('链接无效。');
       const capabilities = await initialize();
       if (!isObject(capabilities?.openLinks)) throw new Error('当前宿主不支持打开外部链接。');

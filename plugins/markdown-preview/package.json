@@ -4,8 +4,10 @@
   "private": true,
   "description": "Enhanced Markdown preview for Codex",
   "scripts": {
-    "test": "node --no-global-search-paths scripts/test-mcp.cjs",
+    "test": "node --no-global-search-paths scripts/test-mcp.cjs && node --test scripts/test-watch.cjs scripts/test-browser-launch.cjs scripts/test-browser-preview.cjs",
     "test:browser": "node scripts/test-browser.cjs",
+    "test:live": "node scripts/test-live-preview.cjs",
+    "test:open-browser": "node scripts/test-open-browser.cjs",
     "setup": "npm ci --include=dev --include=optional --ignore-scripts && npm --prefix runtime/renderer ci --include=optional --ignore-scripts"
   },
   "engines": {

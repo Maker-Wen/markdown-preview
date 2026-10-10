@@ -4,7 +4,8 @@ const { constants } = require('node:fs');
 
 // Callers validate the real path and its scope before opening it.
 async function readRegularFile(file) {
-  const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  // A FIFO must not block open before the descriptor's file type can be checked.
+  const handle = await fs.open(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
     const stat = await handle.stat();
     if (!stat.isFile()) throw new Error('只能预览普通文件。');

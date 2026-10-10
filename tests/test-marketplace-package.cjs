@@ -1,13 +1,17 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
+const vm = require('node:vm');
+const { createRequire } = require('node:module');
 const tar = require('tar');
 const { build, MARKER, BUILDER } = require('../scripts/build-marketplace.cjs');
+const { main: packageMarketplace } = require('../scripts/package-marketplace.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE_PLUGIN = path.join(ROOT, 'plugins/markdown-preview');
@@ -171,9 +175,12 @@ test('self-contained marketplace preserves its production runtime and runs after
     }
   });
 
-  await t.test('relocated archive uses only its own dependencies for full Markdown render and bundled viewer HTML', async () => {
-    const archive = path.join(root, 'marketplace.tar.gz');
-    await tar.c({ file: archive, gzip: true, cwd: output }, ['.']);
+  await t.test('the package main entry point creates a portable archive that renders after relocation', async () => {
+    await packageMarketplace(['--output', output, '--version', '1.2.3', '--source-commit', sourceCommit]);
+    const archive = path.join(root, 'markdown-preview-marketplace.tgz');
+    const bytes = await fs.readFile(archive);
+    assert.equal(await fs.readFile(path.join(root, 'marketplace.SHA256SUMS'), 'utf8'),
+      `${crypto.createHash('sha256').update(bytes).digest('hex')}  markdown-preview-marketplace.tgz\n`);
     const types = [];
     await tar.t({ file: archive, strict: true, onReadEntry: entry => types.push(entry.type) });
     assert.ok(types.length > 0);
@@ -181,7 +188,10 @@ test('self-contained marketplace preserves its production runtime and runs after
     const relocated = path.join(root, 'relocated');
     await fs.mkdir(relocated);
     await tar.x({ file: archive, cwd: relocated, strict: true });
-    const isolatedPlugin = path.join(relocated, 'plugins/markdown-preview');
+    const relocatedMarketplace = path.join(relocated, 'marketplace');
+    assert.equal((await json(path.join(relocatedMarketplace, MARKER))).root, '.');
+    assert.equal((await json(path.join(output, MARKER))).root, output);
+    const isolatedPlugin = path.join(relocatedMarketplace, 'plugins/markdown-preview');
     const working = path.join(root, 'independent-workspace');
     await fs.mkdir(working);
     const docs = path.join(working, '文档目录');
@@ -263,4 +273,258 @@ for (const name of ['node:http', 'node:https']) {
     assert.equal(marker.sourceVersion, sourceVersion);
     assert.equal(marker.contentHash, result.contentHash);
   });
+});
+
+// Exercise the exported production entry point with real filesystem operations.
+// Only building a large dependency tree and the selected failure are replaced.
+async function packageMainFixture(t, existing = 'both') {
+  const root = await temporary(t);
+  const output = path.join(root, 'dist');
+  const source = path.join(output, 'marketplace');
+  const archiveName = 'markdown-preview-marketplace.tgz';
+  const checksumName = 'marketplace.SHA256SUMS';
+  const archive = path.join(output, archiveName);
+  const checksum = path.join(output, checksumName);
+  const payload = path.join(source, 'plugins/markdown-preview/README.md');
+  await fs.mkdir(path.dirname(payload), { recursive: true });
+  await fs.writeFile(payload, '# OLD_PACKAGE\n');
+  await fs.writeFile(path.join(source, MARKER), JSON.stringify({ builder: BUILDER, format: 1, root: '.', version: '1.0.0' }));
+  const previous = path.join(root, 'previous.tgz');
+  await tar.c({ cwd: output, file: previous, gzip: true, portable: true }, ['marketplace']);
+  const oldArchive = await fs.readFile(previous);
+  const oldChecksum = Buffer.from(`${crypto.createHash('sha256').update(oldArchive).digest('hex')}  ${archiveName}\n`);
+  if (existing === 'both' || existing === 'archive') await fs.writeFile(archive, oldArchive);
+  if (existing === 'both' || existing === 'checksum') await fs.writeFile(checksum, oldChecksum);
+  await fs.writeFile(payload, '# NEW_PACKAGE\n');
+  await fs.writeFile(path.join(source, MARKER), JSON.stringify({ builder: BUILDER, format: 1, root: source, version: '1.0.1' }));
+  const sentinel = path.join(output, 'unrelated.txt');
+  await fs.writeFile(sentinel, 'preserve unrelated output\n');
+  const before = new Map([[archive, existing === 'both' || existing === 'archive' ? oldArchive : null],
+    [checksum, existing === 'both' || existing === 'checksum' ? oldChecksum : null]]);
+  const logs = [], warnings = [], calls = [], hits = new Map();
+  const hit = name => hits.set(name, (hits.get(name) || 0) + 1);
+  const injected = name => Object.assign(new Error(`TEST_PACKAGE_${name.toUpperCase().replace(/-/g, '_')}_FAILED`), { code: 'EIO' });
+  const production = path.join(ROOT, 'scripts/package-marketplace.cjs');
+  const productionRequire = createRequire(production);
+
+  async function load(faults = []) {
+    const fsAdapter = Object.create(fs);
+    fsAdapter.writeFile = async (file, ...args) => {
+      if (faults.includes('checksum') && path.basename(String(file)) === checksumName && !hits.has('checksum')) {
+        hit('checksum');
+        await fs.writeFile(file, 'PARTIAL_CHECKSUM');
+        throw injected('checksum');
+      }
+      return fs.writeFile(file, ...args);
+    };
+    fsAdapter.rename = async (from, to) => {
+      calls.push({ operation: 'rename', from: String(from), to: String(to) });
+      if ((faults.includes('commit') || faults.includes('restore') || faults.includes('restore-remove')) && path.resolve(String(to)) === checksum
+        && path.basename(String(from)) === checksumName && !hits.has('commit')) {
+        hit('commit');
+        throw injected('commit');
+      }
+      if (faults.includes('backup') && path.basename(String(to)) === 'previous-' + checksumName && !hits.has('backup')) {
+        hit('backup');
+        throw injected('backup');
+      }
+      if (faults.includes('restore') && path.resolve(String(to)) === archive
+        && path.basename(String(from)) === 'previous-' + archiveName && !hits.has('restore')) {
+        hit('restore');
+        throw injected('restore');
+      }
+      return fs.rename(from, to);
+    };
+    fsAdapter.rm = async (file, ...args) => {
+      if (faults.includes('restore-remove') && path.resolve(String(file)) === archive
+        && hits.has('commit') && !hits.has('restore-remove')) {
+        hit('restore-remove');
+        throw injected('restore-remove');
+      }
+      if (faults.includes('cleanup') && path.basename(String(file)).startsWith('.markdown-preview-marketplace-package-')
+        && !hits.has('cleanup')) {
+        hit('cleanup');
+        throw injected('cleanup');
+      }
+      return fs.rm(file, ...args);
+    };
+    const tarAdapter = { ...tar };
+    tarAdapter.c = async (options, entries) => {
+      if (faults.includes('tar') && !hits.has('tar')) {
+        hit('tar');
+        await fs.writeFile(options.file, 'PARTIAL_TAR');
+        throw injected('tar');
+      }
+      return tar.c(options, entries);
+    };
+    const controlledRequire = specifier => {
+      if (specifier === 'node:fs/promises') return fsAdapter;
+      if (specifier === 'tar') return tarAdapter;
+      if (specifier === './build-marketplace.cjs') return {
+        ...productionRequire(specifier),
+        build: async options => {
+          assert.equal(options.output, source);
+          assert.equal(options.version, '1.0.1');
+          return { root: source, version: '1.0.1' };
+        }
+      };
+      return productionRequire(specifier);
+    };
+    const loaded = { exports: {} };
+    vm.runInNewContext(await fs.readFile(production, 'utf8'), {
+      require: controlledRequire, module: loaded, exports: loaded.exports,
+      process, Buffer, __filename: production, __dirname: path.dirname(production),
+      console: { log: value => logs.push(String(value)), warn: value => warnings.push(String(value)), error: value => warnings.push(String(value)) }
+    }, { filename: production });
+    assert.equal(typeof loaded.exports.main, 'function');
+    return () => loaded.exports.main(['--output', source, '--version', '1.0.1']);
+  }
+
+  const workDirectories = async () => (await fs.readdir(output))
+    .filter(name => name.startsWith('.markdown-preview-marketplace-package-')).map(name => path.join(output, name));
+  async function assertRestored() {
+    for (const [file, bytes] of before) {
+      if (bytes) assert.deepEqual(await fs.readFile(file), bytes, `previous bytes changed: ${file}`);
+      else await assert.rejects(fs.lstat(file), { code: 'ENOENT' });
+    }
+    assert.equal(await fs.readFile(sentinel, 'utf8'), 'preserve unrelated output\n');
+    assert.deepEqual(await workDirectories(), []);
+    assert.deepEqual(logs, [], 'a failed package must not emit a success summary');
+  }
+  return { root, output, source, archive, checksum, oldArchive, oldChecksum, before,
+    logs, warnings, calls, hits, load, workDirectories, assertRestored };
+}
+
+for (const fault of ['tar', 'checksum', 'commit']) {
+  test(`marketplace package main restores exact outputs after ${fault} failure`, async t => {
+    for (const existing of ['none', 'both', 'archive', 'checksum']) {
+      await t.test(existing, async t => {
+        const f = await packageMainFixture(t, existing);
+        const run = await f.load([fault]);
+        await assert.rejects(run(), new RegExp(`TEST_PACKAGE_${fault.toUpperCase()}_FAILED`));
+        assert.equal(f.hits.get(fault), 1, 'the intended failure must actually be injected');
+        await f.assertRestored();
+      });
+    }
+  });
+}
+
+test('marketplace package main restores the first backup if the second backup fails', async t => {
+  const f = await packageMainFixture(t);
+  const run = await f.load(['backup']);
+  await assert.rejects(run(), /TEST_PACKAGE_BACKUP_FAILED/);
+  assert.equal(f.hits.get('backup'), 1);
+  assert.ok(f.calls.some(call => call.from === f.archive && path.basename(call.to) === 'previous-' + path.basename(f.archive)));
+  await f.assertRestored();
+});
+
+test('marketplace package main replaces both outputs and reports a portable successful package', async t => {
+  const f = await packageMainFixture(t);
+  const run = await f.load();
+  await run();
+  const bytes = await fs.readFile(f.archive);
+  assert.notDeepEqual(bytes, f.oldArchive);
+  assert.equal(await fs.readFile(f.checksum, 'utf8'), `${crypto.createHash('sha256').update(bytes).digest('hex')}  ${path.basename(f.archive)}\n`);
+  const extracted = path.join(f.root, 'extracted');
+  await fs.mkdir(extracted);
+  await tar.x({ file: f.archive, cwd: extracted, strict: true });
+  assert.equal((await json(path.join(extracted, 'marketplace', MARKER))).root, '.');
+  assert.equal((await json(path.join(f.source, MARKER))).root, f.source, 'portable marker rewriting must leave the built source unchanged');
+  assert.equal(await fs.readFile(path.join(extracted, 'marketplace/plugins/markdown-preview/README.md'), 'utf8'), '# NEW_PACKAGE\n');
+  assert.deepEqual(await f.workDirectories(), []);
+  assert.deepEqual(f.warnings, []);
+  assert.equal(f.logs.length, 1);
+  assert.ok(f.logs[0].includes(`市场分发包：${f.archive}\n版本：1.0.1\n`));
+  assert.match(f.logs[0], /压缩大小：\d+\.\d{2} MiB$/);
+});
+
+test('marketplace package main retains recoverable backups and reports both failures if restoration fails', async t => {
+  for (const fault of ['restore', 'restore-remove']) {
+    await t.test(fault, async t => {
+      const f = await packageMainFixture(t);
+      const run = await f.load([fault]);
+      let failure;
+      await assert.rejects(run(), error => {
+        failure = error;
+        return error.name === 'AggregateError' && error.message.includes('TEST_PACKAGE_COMMIT_FAILED')
+          && error.message.includes(`TEST_PACKAGE_${fault.toUpperCase().replace(/-/g, '_')}_FAILED`);
+      });
+      assert.equal(f.hits.get('commit'), 1);
+      assert.equal(f.hits.get(fault), 1);
+      const work = await f.workDirectories();
+      assert.equal(work.length, 1);
+      assert.ok(failure.message.includes(work[0]), 'the error must identify the recovery directory');
+      const recoveryArchive = path.join(work[0], 'previous-' + path.basename(f.archive));
+      assert.deepEqual(await fs.readFile(recoveryArchive), f.oldArchive);
+      assert.deepEqual(await fs.readFile(f.checksum), f.oldChecksum);
+      assert.equal(crypto.createHash('sha256').update(await fs.readFile(recoveryArchive)).digest('hex'), f.oldChecksum.toString('utf8').split(/\s+/)[0]);
+      assert.deepEqual(f.logs, []);
+    });
+  }
+});
+
+test('marketplace package main refuses directories and symlinks without moving either target', async t => {
+  for (const target of ['archive', 'checksum']) {
+    for (const kind of ['directory', 'symlink', 'dangling-symlink']) {
+      await t.test(`${target} ${kind}`, async t => {
+        const f = await packageMainFixture(t);
+        const file = f[target];
+        await fs.rm(file);
+        const linked = path.join(f.root, 'linked-output');
+        if (kind === 'directory') {
+          await fs.mkdir(file);
+          await fs.writeFile(path.join(file, 'keep.txt'), 'preserve this directory\n');
+        } else {
+          if (kind === 'symlink') await fs.writeFile(linked, 'preserve linked bytes\n');
+          await fs.symlink(linked, file, 'file');
+        }
+        const run = await f.load();
+        await assert.rejects(run(), /普通文件|拒绝覆盖/);
+        if (kind === 'directory') assert.equal(await fs.readFile(path.join(file, 'keep.txt'), 'utf8'), 'preserve this directory\n');
+        else {
+          assert.equal((await fs.lstat(file)).isSymbolicLink(), true);
+          assert.equal(await fs.readlink(file), linked);
+          if (kind === 'symlink') assert.equal(await fs.readFile(linked, 'utf8'), 'preserve linked bytes\n');
+          else await assert.rejects(fs.lstat(linked), { code: 'ENOENT' });
+        }
+        const untouched = target === 'archive' ? f.checksum : f.archive;
+        assert.deepEqual(await fs.readFile(untouched), f.before.get(untouched));
+        assert.deepEqual(f.calls, [], 'both output types must be checked before either original is moved');
+        assert.deepEqual(await f.workDirectories(), []);
+        assert.deepEqual(f.logs, []);
+      });
+    }
+  }
+});
+
+test('marketplace package main warns on cleanup failure without rejecting an installed valid pair', async t => {
+  const f = await packageMainFixture(t);
+  const run = await f.load(['cleanup']);
+  await run();
+  assert.equal(f.hits.get('cleanup'), 1);
+  const bytes = await fs.readFile(f.archive);
+  assert.notDeepEqual(bytes, f.oldArchive);
+  assert.equal(await fs.readFile(f.checksum, 'utf8'), `${crypto.createHash('sha256').update(bytes).digest('hex')}  ${path.basename(f.archive)}\n`);
+  assert.equal(f.logs.length, 1);
+  assert.equal(f.warnings.length, 1);
+  assert.match(f.warnings[0], /TEST_PACKAGE_CLEANUP_FAILED/);
+  const work = await f.workDirectories();
+  assert.equal(work.length, 1);
+  assert.ok(f.warnings[0].includes(work[0]));
+});
+
+test('marketplace package main retains the original failure when rollback cleanup also fails', async t => {
+  const f = await packageMainFixture(t);
+  const run = await f.load(['checksum', 'cleanup']);
+  await assert.rejects(run(), error => error.code === 'EIO' && error.message === 'TEST_PACKAGE_CHECKSUM_FAILED');
+  assert.equal(f.hits.get('checksum'), 1);
+  assert.equal(f.hits.get('cleanup'), 1);
+  assert.deepEqual(await fs.readFile(f.archive), f.oldArchive);
+  assert.deepEqual(await fs.readFile(f.checksum), f.oldChecksum);
+  assert.deepEqual(f.logs, []);
+  assert.equal(f.warnings.length, 1);
+  assert.match(f.warnings[0], /TEST_PACKAGE_CLEANUP_FAILED/);
+  const work = await f.workDirectories();
+  assert.equal(work.length, 1);
+  assert.ok(f.warnings[0].includes(work[0]));
 });
