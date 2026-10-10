@@ -49,7 +49,9 @@ function marketplaceReadme(version, sourceCommit) {
   const source = `https://github.com/Maker-Wen/markdown-preview/tree/${sourceCommit || 'main'}`;
   return `# Markdown Preview 插件市场
 
-Codex Markdown 查看器，支持目录、代码高亮、KaTeX、Mermaid、本地图片和源码查看。
+Codex Markdown 查看器，支持保存后自动更新、浏览器预览、目录、代码高亮、KaTeX、Mermaid、本地图片和源码查看。
+
+由 [yomori](https://github.com/Maker-Wen) 维护。查看 [功能截图与使用说明](https://github.com/Maker-Wen/markdown-preview#readme)。
 
 ## 安装
 
@@ -61,6 +63,8 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 \`\`\`
 
 打开新聊天，在 Markdown 文件的查看器菜单选择 **Open in ChatGPT → Markdown Preview**。
+
+保存已打开的文件后，正文、源码和目录自动更新，并保留阅读位置和目录设置。点击“在浏览器打开”可在默认浏览器中阅读；使用时保持当前 Codex 聊天开启。主题跟随系统，预览保持只读。
 
 ## 更新
 

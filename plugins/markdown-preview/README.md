@@ -1,6 +1,14 @@
 # Markdown Preview
 
-Codex 的 Markdown 文件查看器，支持 `.md` 和 `.markdown`。
+Codex 的 Markdown 预览插件（Markdown preview），支持 `.md` 和 `.markdown`，提供 KaTeX 公式、Mermaid 图表、代码高亮和目录导航。保存 Markdown 后自动更新，也可在独立浏览器阅读。
+
+## 预览截图
+
+实际浏览器阅读页的浅色与深色主题：
+
+![Markdown Preview 浏览器预览，浅色主题](https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/docs/images/browser-preview-light.jpg)
+
+![Markdown Preview 浏览器预览，深色主题](https://raw.githubusercontent.com/Maker-Wen/markdown-preview/main/docs/images/browser-preview-dark.jpg)
 
 ## 安装
 
@@ -11,15 +19,15 @@ codex plugin marketplace add Maker-Wen/markdown-preview --ref codex/marketplace
 codex plugin add markdown-preview@markdown-preview-marketplace
 ```
 
-远程脚本和更新方法见[完整安装说明](https://github.com/Maker-Wen/markdown-preview#安装)。
+更新方法见[完整安装说明](https://github.com/Maker-Wen/markdown-preview#安装)。本地源码安装见[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md#本地源码安装)。
 
 ## 使用
 
-安装后打开新的 Codex 聊天，从 Markdown 文件的查看器菜单选择 **Open in ChatGPT → Markdown Preview**。Codex 使用保存的首选查看器；选择 **Built-in** 可返回内置查看器。保存文件后自动刷新；插件更新后需重新打开预览。
+安装后打开新的 Codex 聊天，从 Markdown 文件的查看器菜单选择 **Open in ChatGPT → Markdown Preview** 。Codex 使用保存的首选查看器；选择 **Built-in** 可返回内置查看器。保存文件后自动刷新；插件更新后需重新打开预览。
 
 ## 支持范围
 
-- 表格、任务列表、代码高亮、数学公式和 Mermaid 图表。
+- 表格、任务列表、代码高亮、KaTeX 数学公式和 Mermaid 图表。
 - 文档目录及子目录内的本地图片；外部图片以说明文字替代。
 - 保留源码字符与换行的源码视图和选区复制。
 - 保存后自动更新正文、源码和目录，保留滚动位置、源码视图及目录设置。宿主不支持自动刷新时，页面会显示提示。
@@ -31,7 +39,11 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 
 ## 文档
 
-[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md)、[兼容性说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/compatibility.md)和[分发说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/distribution.md)。
+[开发指南](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/development.md)、[兼容性说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/compatibility.md)、[分发说明](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/distribution.md)和[插件发现与上架](https://github.com/Maker-Wen/markdown-preview/blob/main/docs/plugin-discovery.md)。
+
+## 作者
+
+[yomori](https://github.com/Maker-Wen) 维护本插件。问题和功能建议可提交到 [GitHub Issues](https://github.com/Maker-Wen/markdown-preview/issues)。
 
 ## 致谢
 
