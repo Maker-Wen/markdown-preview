@@ -76,7 +76,7 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n## ' +
       await host.setContent('<iframe title="Markdown Preview" style="width:100%;height:850px;border:0"></iframe>');
       const html = template.replace('<script>', () => '<script>window.openai='
         + JSON.stringify({ toolOutput: document.output }).replace(/</g, '\\u003c') + ';</script><script>');
-      await host.evaluate(({ html, supportsTools }) => {
+      await host.evaluate(({ html, supportsTools, holdFirstReopen }) => {
         const iframe = document.querySelector('iframe');
         window.__toolCalls = [];
         window.__toolResults = [];
@@ -84,7 +84,7 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n## ' +
         window.__heldRefresh = null;
         window.__holdMarker = '';
         window.__heldReopen = null;
-        window.__holdReopen = false;
+        window.__holdReopen = holdFirstReopen;
         window.addEventListener('message', async event => {
           const message = event.data;
           if (event.source !== iframe.contentWindow || message?.jsonrpc !== '2.0' || !message.method || !message.id) return;
@@ -122,11 +122,17 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n## ' +
           iframe.contentWindow.postMessage({ jsonrpc: '2.0', id: message.id, result }, '*');
         });
         iframe.srcdoc = html;
-      }, { html, supportsTools: options?.supportsTools !== false });
+      }, { html, supportsTools: options?.supportsTools !== false,
+        holdFirstReopen: options?.holdFirstReopen === true });
       const iframeElement = await host.locator('iframe').elementHandle();
       const frame = await iframeElement.contentFrame();
       await frame.locator('#name').filter({ hasText: document.output.name }).waitFor({ timeout });
       await frame.waitForFunction(text => document.getElementById('source').textContent === text, document.output.text, { timeout });
+      if (options?.holdFirstReopen) {
+        // Exercise a reopen result arriving before the test callback is ready.
+        await host.waitForFunction(() => window.__toolResults.some(result => result.name === 'markdown_preview_open'),
+          undefined, { timeout });
+      }
       await run({ host, frame, session });
     } finally { await context.close(); }
   };
@@ -462,8 +468,7 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n## ' +
     await check('An expired-watch reopen arriving after a document switch cannot replace the new document', async () => {
       const first = await openDocument('reopen-old', markdown('Reopen old title', 'REOPEN_OLD_CONTENT'));
       const second = await openDocument('reopen-new', markdown('Reopen new title', 'REOPEN_NEW_CONTENT'));
-      await withViewer(first, { expireFirstRefresh: true }, async ({ host, frame, session }) => {
-        await host.evaluate(() => { window.__holdReopen = true; });
+      await withViewer(first, { expireFirstRefresh: true, holdFirstReopen: true }, async ({ host, frame, session }) => {
         await host.waitForFunction(() => window.__heldReopen !== null, undefined, { timeout });
         session.file = second.file;
         await frame.evaluate(output => {
@@ -488,7 +493,8 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n## ' +
         assert.equal(await frame.locator('#error').isVisible(), false);
         assert.equal(await frame.locator('#status').isVisible(), false);
       });
-      return { realReopenHeldInFlight: true, switchedDocumentRetained: true, newDocumentContinuesRefreshing: true };
+      return { reopenArrivedBeforeTestCallback: true, realReopenHeldInFlight: true,
+        switchedDocumentRetained: true, newDocumentContinuesRefreshing: true };
     });
 
     await check('Unchanged refreshes omit document payloads and preserve the visible DOM', async () => {
