@@ -10,7 +10,7 @@ const { buildBrowserHtml } = require('./browser-html.cjs');
 const { openBrowser } = require('./browser.cjs');
 
 const UI = 'ui://markdown-preview/reader-v1.html';
-const server = new McpServer({ name: 'markdown-preview-mcp-server', version: '1.0.0' });
+const server = new McpServer({ name: 'markdown-preview-mcp-server', version: '0.1.0' });
 const watches = createDocumentWatches({ render: (file, text) => require('./render.cjs').render(file, text) });
 const browsers = createBrowserPreviews({ watches, buildHtml: buildBrowserHtml, openBrowser });
 server.server.onclose = () => { browsers.close(); watches.close(); };

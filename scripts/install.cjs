@@ -152,7 +152,7 @@ const fs = require('node:fs/promises');
 const { Client } = require('./node_modules/@modelcontextprotocol/sdk/dist/cjs/client/index.js');
 const { StdioClientTransport } = require('./node_modules/@modelcontextprotocol/sdk/dist/cjs/client/stdio.js');
 (async () => {
- const client = new Client({name:'markdown-preview-installer',version:'1.0.0'});
+ const client = new Client({name:'markdown-preview-installer',version:'0.1.0'});
  const transport = new StdioClientTransport({command:process.execPath,args:['--no-global-search-paths',path.resolve('scripts/server.cjs')],stderr:'pipe'});
  transport.stderr?.on('data', () => {});
  try {
