@@ -30,6 +30,6 @@ codex plugin add markdown-preview@markdown-preview-marketplace
 
 ## 分发信息
 
-版本：`1.0.0+marketplace.c0974b5443396ae6` · [源码与文档](https://github.com/Maker-Wen/markdown-preview/tree/94aa6d2445830c4e063bea8803a6f7530d1df8b6)
+版本：`0.1.0+marketplace.7ca556ba25db072c` · [源码与文档](https://github.com/Maker-Wen/markdown-preview/tree/1271c8e5cbd30ce8f1c0a343ae63811771546416)
 
 包含预览运行依赖及上游许可证材料。

@@ -1,6 +1,6 @@
 {
   "name": "markdown-preview",
-  "version": "1.0.0+marketplace.c0974b5443396ae6",
+  "version": "0.1.0+marketplace.7ca556ba25db072c",
   "description": "Codex Markdown 预览，支持 KaTeX、Mermaid、目录、代码高亮和保存后更新，可在浏览器阅读。",
   "author": {
     "name": "yomori",

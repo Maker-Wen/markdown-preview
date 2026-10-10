@@ -2,9 +2,9 @@
   "builder": "markdown-preview-marketplace-builder",
   "format": 1,
   "root": ".",
-  "sourceVersion": "1.0.0",
-  "baseVersion": "1.0.0",
-  "contentHash": "c0974b5443396ae602fe68607f7ddfcd2d34e14e1c90542ead3e52984ba5e408",
-  "version": "1.0.0+marketplace.c0974b5443396ae6",
-  "sourceCommit": "94aa6d2445830c4e063bea8803a6f7530d1df8b6"
+  "sourceVersion": "0.1.0",
+  "baseVersion": "0.1.0",
+  "contentHash": "7ca556ba25db072cead7d3c676f6f3c06a06cf3a7c4e252c60f48bda56c831da",
+  "version": "0.1.0+marketplace.7ca556ba25db072c",
+  "sourceCommit": "1271c8e5cbd30ce8f1c0a343ae63811771546416"
 }
