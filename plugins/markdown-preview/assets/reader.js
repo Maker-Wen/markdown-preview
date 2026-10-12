@@ -109,8 +109,13 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   }
 
   function resume() {
+    if (!suspended) return;
     suspended = false;
-    if (documentOutput) watchDocument(documentOutput);
+    if (documentOutput) {
+      watchDocument(documentOutput);
+      // A font wait retired by pagehide still needs a drawing in the current view.
+      renderDiagrams();
+    }
   }
 
   function readPreference(name, allowed) {
@@ -184,10 +189,10 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   }
 
   async function renderDiagrams(id = generation) {
-    if ($('content').hidden) return;
+    if (suspended || $('content').hidden) return;
     try {
       await document.fonts.ready;
-      if (id !== generation || $('content').hidden) return;
+      if (suspended || id !== generation || $('content').hidden) return;
       await mermaid.run({ nodes: $('content').querySelectorAll('.mermaid') });
     } catch {
       if (id === generation) {
@@ -230,7 +235,6 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
     $('name').textContent = output.name;
     document.title = output.name + ' · Markdown Preview';
     showSource(output.text);
-    $('detail').textContent = output.bytes.toLocaleString() + ' 字节';
     setError('');
     $('content').innerHTML = output.html;
     $('toc').innerHTML = output.toc || '<p>此文档没有标题。</p>';

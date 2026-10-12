@@ -51,9 +51,14 @@ const { render, viewerHtml } = require('./render.cjs');
   const diagramFill = frame => frame.locator('#content .mermaid svg .node rect').first()
     .evaluate(node => getComputedStyle(node).fill);
 
-  async function reader({ hostContext = {}, systemTheme = 'light', behavior = 'respond', width = 900 } = {}) {
+  async function reader({ hostContext = {}, systemTheme = 'light', behavior = 'respond', width = 900, holdFonts = false } = {}) {
     const context = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: systemTheme, offline: true });
     await context.route('**/*', route => { requests.push(route.request().url()); return route.abort(); });
+    if (holdFonts) await context.addInitScript(() => {
+      window.fontWaitReads = 0;
+      const ready = new Promise(resolve => { window.releaseFonts = resolve; });
+      Object.defineProperty(document.fonts, 'ready', { get() { window.fontWaitReads++; return ready; } });
+    });
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.setContent('<style>html,body{margin:0;height:100%}iframe{width:100%;height:100%;border:0}</style>'
@@ -82,8 +87,11 @@ const { render, viewerHtml } = require('./render.cjs');
     }, { html: bootstrap(), hostContext, behavior });
     const frame = await (await page.locator('#reader').elementHandle()).contentFrame();
     await frame.locator('#content h1').filter({ hasText: 'Markdown 功能示例' }).waitFor();
-    await frame.locator('#content .mermaid svg').waitFor({ timeout: 20000 });
-    await frame.evaluate(() => document.fonts.ready);
+    if (holdFonts) await frame.waitForFunction(() => window.fontWaitReads > 0);
+    else {
+      await frame.locator('#content .mermaid svg').waitFor({ timeout: 20000 });
+      await frame.evaluate(() => document.fonts.ready);
+    }
     await settle(frame);
     const notify = async params => {
       await page.evaluate(params => document.getElementById('reader').contentWindow.postMessage({ jsonrpc: '2.0',
@@ -209,6 +217,31 @@ const { render, viewerHtml } = require('./render.cjs');
       } finally { await app.close(); }
     });
 
+    await check('Valid quoted host font names and multiline CSS values retain host appearance', async () => {
+      const app = await reader();
+      try {
+        const variables = {
+          '--font-sans': '"@Host; Sans",\n sans-serif',
+          '--font-mono': '"Host; Mono",\n monospace',
+          '--color-background-primary': 'rgb(\n240 241 242)'
+        };
+        const fonts = ['@Host; Sans', 'Host; Mono'].map(family =>
+          `@font-face{font-family:"${family}";src:url("${embeddedFont}") format("woff2");}`).join('\n');
+        await app.notify({ styles: { variables, css: { fonts } } });
+        await app.frame.evaluate(() => document.fonts.ready);
+        const styles = await appearance(app.frame);
+        assert.match(styles.paragraph.font, /@Host; Sans/);
+        assert.match(styles.code.font, /Host; Mono/);
+        assert.equal(styles.body.background, 'rgb(240, 241, 242)');
+        const loaded = await app.frame.evaluate(() => [...document.fonts]
+          .filter(font => font.status === 'loaded').map(font => font.family));
+        assert.ok(loaded.some(font => font.includes('@Host; Sans')));
+        assert.ok(loaded.some(font => font.includes('Host; Mono')));
+        assert.equal(await app.frame.locator('#source').textContent(), text);
+        return { quotedFontNamesAccepted: true, multilineCssAccepted: true, hostFontsLoaded: true };
+      } finally { await app.close(); }
+    });
+
     await check('Delayed or failed appearance negotiation never blocks the document or source', async () => {
       const app = await reader({ behavior: 'hold' });
       try {
@@ -305,6 +338,84 @@ const { render, viewerHtml } = require('./render.cjs');
         await app.frame.locator('#toggle-source').click();
         await app.frame.locator('#content .mermaid svg').waitFor();
         return { realSvgRepainted: true, readingScrollPreserved: true, sourceModePreserved: true, exactCRLFSource: true };
+      } finally { await app.close(); }
+    });
+
+    await check('Page show completes a suspended font-waiting diagram without a document update', async () => {
+      for (const readyBeforeShow of [true, false]) {
+        const app = await reader({ holdFonts: true });
+        try {
+          assert.equal(await app.frame.locator('#content .mermaid svg').count(), 0);
+          await app.frame.evaluate(() => {
+            window.originalParagraph = document.querySelector('#content p');
+            document.getElementById('main').scrollTo({ top: 320, behavior: 'instant' });
+            window.dispatchEvent(new Event('pagehide'));
+          });
+          if (readyBeforeShow) {
+            await app.frame.evaluate(() => window.releaseFonts());
+            await settle(app.frame);
+            assert.equal(await app.frame.locator('#content .mermaid svg').count(), 0,
+              'A retired drawing must not run while the page is suspended');
+          }
+          await app.frame.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+          if (!readyBeforeShow) {
+            assert.equal(await app.frame.locator('#content .mermaid svg').count(), 0);
+            await app.frame.evaluate(() => window.releaseFonts());
+          }
+          await app.frame.locator('#content .mermaid svg').waitFor({ timeout: 5000 });
+          await settle(app.frame);
+          assert.equal(await app.frame.locator('#source').textContent(), text);
+          assert.equal(await app.frame.evaluate(() => window.originalParagraph === document.querySelector('#content p')), true,
+            'Resuming a diagram must not rebuild the document DOM');
+          assert.ok(Math.abs(await app.frame.locator('#main').evaluate(node => node.scrollTop) - 320) < 2);
+          const waits = await app.frame.evaluate(() => window.fontWaitReads);
+          await app.frame.evaluate(() => window.dispatchEvent(new Event('pageshow')));
+          await settle(app.frame);
+          assert.equal(await app.frame.evaluate(() => window.fontWaitReads), waits,
+            'An extra pageshow without a preceding pagehide must not start another drawing');
+          assert.equal(await app.frame.locator('#error').isVisible(), false);
+        } finally { await app.close(); }
+      }
+      return { fontReadyBeforeAndAfterResume: true, noDocumentUpdateRequired: true,
+        originalDomAndScrollPreserved: true, extraPageShowIgnored: true };
+    });
+
+    await check('Resuming in source mode retains the latest paused document and defers diagrams until reading', async () => {
+      const app = await reader({ holdFonts: true });
+      try {
+        const latestText = text.replace('Markdown 功能示例', 'Latest paused document')
+          .replace('浏览目录', 'LATEST_RESUMED_DIAGRAM');
+        const latest = { ...output, name: 'latest-paused.md', text: latestText,
+          bytes: Buffer.byteLength(latestText), ...await render(fixture, latestText) };
+        await app.frame.evaluate(() => {
+          window.dispatchEvent(new Event('pagehide'));
+          document.getElementById('toggle-source').click();
+        });
+        const waits = await app.frame.evaluate(() => window.fontWaitReads);
+        await app.page.evaluate(toolOutput => {
+          document.getElementById('reader').contentWindow.dispatchEvent(new CustomEvent('openai:set_globals',
+            { detail: { globals: { toolOutput, toolResponseMetadata: {} } } }));
+        }, latest);
+        await app.notify({ theme: 'dark' });
+        await app.frame.locator('#main').evaluate(node => node.scrollTo({ top: 230, behavior: 'instant' }));
+        await app.frame.evaluate(() => {
+          window.dispatchEvent(new Event('pageshow'));
+          window.releaseFonts();
+        });
+        await settle(app.frame);
+        assert.equal(await app.frame.locator('#source').isVisible(), true);
+        assert.equal(await app.frame.locator('#source').textContent(), latestText);
+        assert.equal(await app.frame.locator('#content .mermaid svg').count(), 0);
+        assert.equal(await app.frame.evaluate(() => window.fontWaitReads), waits,
+          'Hidden reading content must not wait on fonts or draw during source-mode resume');
+        assert.ok(Math.abs(await app.frame.locator('#main').evaluate(node => node.scrollTop) - 230) < 2);
+        await app.frame.locator('#toggle-source').click();
+        await app.frame.locator('#content .mermaid svg').waitFor();
+        assert.match(await app.frame.locator('#content .mermaid svg').textContent(), /LATEST_RESUMED_DIAGRAM/);
+        assert.equal((await appearance(app.frame)).theme, 'dark');
+        assert.equal(await app.frame.locator('#error').isVisible(), false);
+        return { latestDocumentRetained: true, sourceModeAndScrollPreserved: true,
+          hiddenDiagramsDeferred: true, staleFontContinuationIgnored: true };
       } finally { await app.close(); }
     });
 

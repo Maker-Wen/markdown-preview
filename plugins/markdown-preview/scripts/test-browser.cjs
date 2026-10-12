@@ -386,7 +386,8 @@ const { render, viewerHtml } = require('./render.cjs');
       assert.equal(await page.locator('article#content').isVisible(), true);
       assert.equal(await page.evaluate(() => window.__markdown_script_executed), undefined);
       assert.equal(await page.locator('#content script, #content img[onerror]').count(), 0);
-      assert.match(await page.locator('main > div#detail').innerText(), /字节/);
+      assert.equal(await page.locator('main > div#detail').count(), 0,
+        'The retired byte-count UI must not remain in the reader shell');
     });
     await check('Same-document updates and theme changes preserve reading position', async () => {
       const diagrams = await observeDiagrams(page);

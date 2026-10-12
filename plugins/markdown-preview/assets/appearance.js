@@ -65,7 +65,6 @@ window.createReaderAppearance = function createReaderAppearance(onChange) {
       for (const [name, property] of properties) {
         const value = variables[name];
         const accepted = typeof value === 'string' && value.trim()
-          && !/[;{}<>\u0000-\u001f]|url\s*\(|@/i.test(value)
           && CSS.supports(property, value);
         const next = accepted ? value.trim() : '';
         if (root.style.getPropertyValue(name) === next) continue;
