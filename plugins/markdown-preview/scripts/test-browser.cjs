@@ -26,6 +26,14 @@ const { render, viewerHtml } = require('./render.cjs');
     catch (error) { results.push({ name, pass: false, error: error.message }); }
     console.log((results.at(-1).pass ? 'PASS' : 'FAIL') + ': ' + name);
   };
+  const waitForStartupHandshake = async (hostPage, requestName) => {
+    await hostPage.waitForFunction(name => window[name].some(message =>
+      message.method === 'ui/notifications/initialized'), requestName);
+    const messages = await hostPage.evaluate(name => window[name], requestName);
+    assert.deepEqual(messages.map(message => message.method), ['ui/initialize', 'ui/notifications/initialized'],
+      'Startup must complete exactly one handshake without a navigation RPC');
+    return messages;
+  };
   const setSystemTheme = async (page, colorScheme) => {
     await page.emulateMedia({ colorScheme });
     await page.waitForFunction(value => document.documentElement.dataset.theme === value, colorScheme);
@@ -206,9 +214,9 @@ const { render, viewerHtml } = require('./render.cjs');
       }, lightFill);
       const darkFill = await page.locator('#content .mermaid svg .node rect').first().evaluate(node => getComputedStyle(node).fill);
       assert.notEqual(darkFill, 'none');
-      assert.equal(await page.locator('body').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(23, 26, 32)');
-      assert.equal(await page.locator('#content pre').first().evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(32, 36, 43)');
-      assert.equal(await page.locator('#content pre code').first().evaluate(node => getComputedStyle(node).color), 'rgb(226, 232, 240)');
+      assert.equal(await page.locator('body').evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(25, 25, 25)');
+      assert.equal(await page.locator('#content pre').first().evaluate(node => getComputedStyle(node).backgroundColor), 'rgb(36, 36, 36)');
+      assert.equal(await page.locator('#content pre code').first().evaluate(node => getComputedStyle(node).color), 'rgb(222, 222, 222)');
       await setSystemTheme(page, 'light');
       await page.waitForFunction(expected => {
         const node = document.querySelector('#content .mermaid svg .node rect');
@@ -596,9 +604,10 @@ const { render, viewerHtml } = require('./render.cjs');
         const frame = host.frameLocator('iframe');
         const body = frame.locator('body');
         await frame.locator('#content h1').filter({ hasText: '链接检查' }).waitFor({ state: 'visible' });
-        assert.deepEqual(await host.evaluate(() => window.requests), []);
+        const initialMessages = await waitForStartupHandshake(host, 'requests');
         await frame.locator('#content a').filter({ hasText: '锚点' }).click();
-        assert.deepEqual(await host.evaluate(() => window.requests), []);
+        assert.deepEqual(await host.evaluate(() => window.requests), initialMessages,
+          'An in-document anchor must not repeat the handshake or send a navigation RPC');
         const targets = [['相对文件', path.join(path.dirname(file), '中文 空格#.md')],
           ['绝对文件', '/private/tmp/result.json'], ['图片', '/private/tmp/image.jpg'], ['代码', '/private/tmp/check.cjs']];
         for (const [label, expected] of targets) {
@@ -639,6 +648,7 @@ const { render, viewerHtml } = require('./render.cjs');
         await frame.locator('#content a').filter({ hasText: '绝对文件' }).click();
         await frame.locator('#error').filter({ hasText: '不支持从预览打开本地文件' }).waitFor();
         assert.equal(await host.evaluate(() => window.requests.some(m => m.method === 'openai/files/open')), false);
+        assert.equal(await host.evaluate(() => window.requests.filter(m => m.method === 'ui/initialize').length), 1);
         assert.equal(await frame.locator('#source').textContent(), linkText);
         return { fileLinks: targets.length, webLinks: 3, errorsVisible: true, parentValidated: true };
       } finally { await host.close(); }
@@ -673,6 +683,7 @@ const { render, viewerHtml } = require('./render.cjs');
         }, { html: bootstrap(linkAdapterOutput), capabilities, reply });
         const frame = await (await hostPage.locator('iframe').elementHandle()).contentFrame();
         await frame.locator('#content h1').filter({ hasText: 'Link adapter' }).waitFor();
+        const initialMessages = await waitForStartupHandshake(hostPage, '__linkRequests');
         await frame.evaluate(mode => {
           const probe = { mode, calls: [], rejectPending: null };
           window.__linkProbe = probe;
@@ -684,33 +695,41 @@ const { render, viewerHtml } = require('./render.cjs');
             return Promise.resolve();
           };
         }, externalMode);
-        await run({ hostPage, frame });
+        await run({ hostPage, frame, initialMessages });
+        const messages = await hostPage.evaluate(() => window.__linkRequests);
+        assert.equal(messages.filter(message => message.method === 'ui/initialize').length, 1);
+        assert.equal(messages.filter(message => message.method === 'ui/notifications/initialized').length, 1);
       } finally { await hostPage.close(); }
     };
 
     await check('HTTPS host shortcuts start synchronously, preserve the receiver, and do not fall back on rejection', async () => {
-      await withLinkHost({ externalMode: 'success' }, async ({ hostPage, frame }) => {
+      await withLinkHost({ externalMode: 'success' }, async ({ hostPage, frame, initialMessages }) => {
         const synchronousCalls = await frame.evaluate(() => {
           document.querySelector('#content a').click();
           return window.__linkProbe.calls;
         });
         assert.deepEqual(synchronousCalls, [{ href: 'https://example.com/adapter', receiverIsOpenai: true }],
-          'The host shortcut must start in the click turn before any initialization await');
+          'The host shortcut must start in the click turn without awaiting a host response');
         await frame.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), []);
+        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), initialMessages,
+          'The HTTPS shortcut must not repeat the handshake or send a navigation RPC');
         assert.equal(await frame.locator('#error').isVisible(), false);
 
         await frame.evaluate(() => { window.__linkProbe.mode = 'reject'; });
         await frame.locator('#content a').filter({ hasText: 'HTTPS' }).click();
         await frame.locator('#error').filter({ hasText: 'TEST_EXTERNAL_FAILED' }).waitFor();
-        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), [],
-          'A rejected host shortcut must not initialize or attempt a second opening route');
+        assert.equal((await frame.evaluate(() => window.__linkProbe.calls)).length, 2,
+          'A rejected click must invoke the HTTPS shortcut once');
+        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), initialMessages,
+          'A rejected host shortcut must not repeat the handshake or attempt a second opening route');
         assert.equal(await frame.locator('#source').textContent(), linkAdapterText);
 
         await frame.evaluate(() => { window.__linkProbe.mode = 'success'; });
         await frame.locator('#content a').filter({ hasText: 'HTTPS' }).click();
         assert.equal(await frame.locator('#error').isVisible(), false);
-        assert.ok((await frame.evaluate(() => window.__linkProbe.calls)).every(call => call.receiverIsOpenai));
+        assert.deepEqual(await frame.evaluate(() => window.__linkProbe.calls), Array.from({ length: 3 }, () =>
+          ({ href: 'https://example.com/adapter', receiverIsOpenai: true })),
+          'Retry must invoke the original HTTPS shortcut once and preserve its receiver');
       });
       return { synchronousStart: true, originalReceiver: true, rejectionVisibleWithoutFallback: true, retryClearsError: true };
     });
@@ -757,7 +776,7 @@ const { render, viewerHtml } = require('./render.cjs');
       const nextText = '# Next link document\n\nNEW_LINK_DOCUMENT\n\n[HTTPS](https://example.com/new-document)\n';
       const next = { name: 'next-link-document.md', resourceUri: 'codex-resource://next-link-document', text: nextText,
         bytes: Buffer.byteLength(nextText), ...await render(file, nextText) };
-      await withLinkHost({ externalMode: 'hold' }, async ({ hostPage, frame }) => {
+      await withLinkHost({ externalMode: 'hold' }, async ({ hostPage, frame, initialMessages }) => {
         await frame.locator('#content a').filter({ hasText: 'HTTPS' }).click();
         await frame.waitForFunction(() => typeof window.__linkProbe.rejectPending === 'function');
         await event(frame, { toolOutput: next, toolResponseMetadata: {} });
@@ -767,7 +786,8 @@ const { render, viewerHtml } = require('./render.cjs');
         assert.equal(await frame.locator('#error').isVisible(), false);
         assert.equal(await frame.locator('#source').textContent(), nextText);
         assert.match(await frame.locator('#content').innerText(), /NEW_LINK_DOCUMENT/);
-        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), []);
+        assert.deepEqual(await hostPage.evaluate(() => window.__linkRequests), initialMessages,
+          'A delayed shortcut error must not trigger another handshake or navigation route');
 
         await frame.evaluate(() => { window.__linkProbe.mode = 'success'; });
         await frame.locator('#content a').filter({ hasText: 'HTTPS' }).click();

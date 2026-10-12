@@ -2,13 +2,13 @@
 
 window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   const $ = id => nodes.get(id);
-  const media = matchMedia('(prefers-color-scheme: dark)');
   let documentOutput;
   let generation = 0;
   let watching;
   let suspended = false;
   const expiredWatches = new Set();
   let browserRequest;
+  const appearance = createReaderAppearance(refreshTheme);
   $('open-browser').hidden = typeof host.openBrowser !== 'function';
 
   function stopWatching() {
@@ -135,13 +135,12 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
     $('toggle-toc').setAttribute('aria-expanded', String(visible));
   }
 
-  function refreshTheme() {
-    const dark = media.matches;
-    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  function refreshTheme(dark) {
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: 'strict',
-      theme: dark ? 'dark' : 'default'
+      theme: dark ? 'dark' : 'default',
+      themeVariables: { fontFamily: getComputedStyle($('content')).fontFamily }
     });
     if (documentOutput) paintDocument($('main').scrollTop);
   }
@@ -187,6 +186,8 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   async function renderDiagrams(id = generation) {
     if ($('content').hidden) return;
     try {
+      await document.fonts.ready;
+      if (id !== generation || $('content').hidden) return;
       await mermaid.run({ nodes: $('content').querySelectorAll('.mermaid') });
     } catch {
       if (id === generation) {
@@ -303,14 +304,15 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
     }
   });
 
-  media.addEventListener('change', refreshTheme);
   window.addEventListener('pagehide', suspend);
   window.addEventListener('pageshow', resume);
-  const { initialDocument, tocVisible } = host.connect(acceptDocument);
+  const { initialDocument, tocVisible, initialAppearance, surface } = host.connect(acceptDocument, appearance.update);
+  document.documentElement.dataset.surface = surface === 'browser' ? 'browser' : 'embedded';
   const savedToc = readPreference('toc', ['visible', 'hidden']);
   setTocVisibility(typeof tocVisible === 'boolean'
     ? tocVisible
     : savedToc === null ? !matchMedia('(max-width:700px)').matches : savedToc === 'visible');
-  refreshTheme();
+  appearance.update(initialAppearance);
+  appearance.refresh();
   acceptDocument(initialDocument);
 };
