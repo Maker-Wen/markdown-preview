@@ -39,7 +39,8 @@ node scripts/package-marketplace.cjs --source-commit "$(git rev-parse HEAD)"
 ## 验证
 
 ```sh
-node --test tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs
+node --test tests/test-workflow-concurrency.cjs
+node --test tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs tests/test-marketplace-unpack.cjs
 MARKDOWN_PREVIEW_REQUIRE_CODEX=1 node --test tests/test-marketplace-install.cjs
 ```
 
@@ -47,7 +48,19 @@ MARKDOWN_PREVIEW_REQUIRE_CODEX=1 node --test tests/test-marketplace-install.cjs
 
 归档测试在独立目录中禁网渲染样例；安装测试使用临时 Codex 配置，检查插件版本及启用状态，再从最终缓存读取 `mcp.json` 并启动 MCP，验证资源和 Markdown 渲染。三平台 CI 校验同一份归档及摘要，并执行缓存启动检查。
 
+工作流回归测试读取实际 YAML，并使用 GitHub 官方表达式引擎核对旧 `main` 重跑、新 `main` 推送、PR 更新及发布等待队列的并发配置。
+
 ## 发布市场分支
+
+推送或合入 `main` 后，`Validate changes` 工作流会等待两版 Node.js 测试和三平台安装验证全部通过，再自动发布到 `codex/marketplace`。发布 job 下载本次 CI 已验证的同一份归档，核对 SHA-256 和来源提交后直接发布，不重新构建运行包。PR 验证不触发发布。
+
+发布 job 使用仓库自带的 `GITHUB_TOKEN`，仅该 job 声明 `contents: write`；临时发布仓库通过 GitHub CLI 的凭据助手认证，无需新增个人令牌。
+
+`main` 验证按运行 ID 隔离，不相互取消；同一 PR 的新验证仍会取消旧运行。发布 job 使用 GitHub 的 `queue: max` 串行排队，最多保留 100 个等待任务，旧重跑不会替换较新的等待任务。发布器在推送前再次核对远端 `main`；旧 CI 重跑或来源提交已过期时跳过发布。推送保留市场分支历史，使用正常快进推送。
+
+自动发布失败时，可在 GitHub Actions 查看 `publish-marketplace` job 并重跑。若 `main` 已前进，应等待当前提交的 CI 发布；旧提交重跑不会替换当前市场包。
+
+需要手动发布时，仍可使用以下流程。
 
 确认产物和验证结果后，先查看发布计划：
 

@@ -9,8 +9,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede PR validation only; older main reruns must not cancel newer runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -48,7 +49,8 @@ jobs:
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
           node tests/test-remote-installer.cjs
-          node --test tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs
+          node --test tests/test-workflow-concurrency.cjs
+          node --test tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs tests/test-marketplace-unpack.cjs
           git diff --check
       - name: Build portable distribution
         if: matrix.node-version == '22.12.0'
@@ -59,6 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: markdown-preview-portable-distribution
+          if-no-files-found: error
           path: |
             dist/markdown-preview-marketplace.tgz
             dist/marketplace.SHA256SUMS
@@ -94,8 +97,55 @@ jobs:
           MARKDOWN_PREVIEW_REQUIRE_PWSH: '1'
         run: node --test tests/test-remote-installer-powershell.cjs
       - name: Verify and unpack the shared distribution
-        run: node -e "const fs=require('node:fs');const crypto=require('node:crypto');const file='dist/markdown-preview-marketplace.tgz';const expected=fs.readFileSync('dist/marketplace.SHA256SUMS','utf8').split(/\s+/)[0];if(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==expected)throw Error('marketplace checksum mismatch');require('tar').x({file,cwd:'dist',strict:true}).catch(e=>{console.error(e);process.exitCode=1;})"
+        run: node scripts/unpack-marketplace.cjs "${{ github.sha }}"
       - name: Install and start the final Codex plugin cache
         env:
           MARKDOWN_PREVIEW_TEST_CODEX: ${{ runner.temp }}/markdown-preview-codex/node_modules/@openai/codex/bin/codex.js
         run: node --test tests/test-marketplace-install.cjs
+
+  publish-marketplace:
+    needs: [validate, verify-distribution]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: markdown-preview-marketplace-publish
+      cancel-in-progress: false
+      # Keep pending publishers too: the default single slot replaces them.
+      queue: max
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+      - name: Install archive tooling
+        run: npm ci --include=dev --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: markdown-preview-portable-distribution
+          path: dist
+      - name: Verify and unpack the validated distribution
+        run: node scripts/unpack-marketplace.cjs "${{ github.sha }}"
+      - name: Publish the validated distribution
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: '0'
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+        run: |
+          # The publisher uses a separate Git repository, so configure the
+          # runner's credential helper rather than relying on checkout credentials.
+          gh auth setup-git
+          node scripts/publish-marketplace.cjs \
+            --source dist/marketplace \
+            --repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" \
+            --ref codex/marketplace \
+            --expected-source-commit "$GITHUB_SHA" \
+            --source-ref main \
+            --publish
