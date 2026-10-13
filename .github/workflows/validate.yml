@@ -9,8 +9,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede PR validation only; older main reruns must not cancel newer runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -48,6 +49,7 @@ jobs:
           node --test tests/test-installer.cjs
           node tests/test-release-package.cjs
           node tests/test-remote-installer.cjs
+          node --test tests/test-workflow-concurrency.cjs
           node --test tests/test-marketplace-package.cjs tests/test-marketplace-publisher.cjs tests/test-marketplace-unpack.cjs
           git diff --check
       - name: Build portable distribution
@@ -111,6 +113,8 @@ jobs:
     concurrency:
       group: markdown-preview-marketplace-publish
       cancel-in-progress: false
+      # Keep pending publishers too: the default single slot replaces them.
+      queue: max
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
