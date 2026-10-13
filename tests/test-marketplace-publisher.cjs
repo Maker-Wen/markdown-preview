@@ -47,6 +47,7 @@ async function fixture(t) {
   const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'markdown-preview-publisher-test-')));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const source = path.join(root, 'marketplace');
+  const development = path.join(root, 'source-development');
   const remote = path.join(root, 'remote.git');
   const globalConfig = path.join(root, 'fixture-global.gitconfig');
   await fs.writeFile(globalConfig, '');
@@ -84,10 +85,108 @@ async function fixture(t) {
   await artifact();
   const args = ['--source', source, '--repo', remote, '--ref', REF];
   const opts = () => options([...args, '--publish']);
+  const guardedOpts = sourceCommit => options([
+    ...args, '--publish', '--expected-source-commit', sourceCommit, '--source-ref', 'main'
+  ]);
+  let sourceInitialized = false;
+  async function mainCommit(content = 'first source commit', destination = 'main') {
+    if (!sourceInitialized) {
+      await fs.mkdir(development);
+      git(development, ['init', '--quiet'], env);
+      git(development, ['checkout', '--quiet', '-b', 'main'], env);
+      sourceInitialized = true;
+    }
+    await fs.writeFile(path.join(development, 'source.txt'), `${content}\n`);
+    git(development, ['add', 'source.txt'], env);
+    git(development, ['commit', '--quiet', '-m', content], env);
+    git(development, ['push', remote, `HEAD:refs/heads/${destination}`], env);
+    return git(development, ['rev-parse', 'HEAD'], env);
+  }
   const refs = () => git(remote, ['for-each-ref', '--format=%(refname)'], env);
   const head = () => git(remote, ['rev-parse', BRANCH], env);
-  return { root, source, remote, globalConfig, env, artifact, args, opts, refs, head };
+  return { root, source, remote, globalConfig, env, artifact, args, opts, guardedOpts, mainCommit, refs, head };
 }
+
+test('automatic publication requires a paired source branch and full commit SHA', () => {
+  const sourceCommit = 'a'.repeat(40);
+  const opts = options(['--expected-source-commit', sourceCommit, '--source-ref', 'main']);
+  assert.equal(opts.expectedSourceCommit, sourceCommit);
+  assert.equal(opts.sourceRef, 'main');
+  assert.throws(() => options(['--expected-source-commit', sourceCommit]));
+  assert.throws(() => options(['--source-ref', 'main']));
+  for (const invalid of ['abc123', 'a'.repeat(39), 'A'.repeat(40), 'g'.repeat(40)]) {
+    assert.throws(() => options(['--expected-source-commit', invalid, '--source-ref', 'main']));
+  }
+});
+
+test('automatic publication rejects a missing or mismatched artifact source without changing remote refs', async t => {
+  const f = await fixture(t);
+  const sourceCommit = await f.mainCommit();
+  const before = git(f.remote, ['for-each-ref', '--format=%(refname):%(objectname)'], f.env);
+  for (const marker of [{}, { sourceCommit: 'invalid' }, { sourceCommit: 'b'.repeat(40) }]) {
+    await f.artifact('1.2.3', { marker });
+    await assert.rejects(publish(f.guardedOpts(sourceCommit), f.env));
+    assert.equal(git(f.remote, ['for-each-ref', '--format=%(refname):%(objectname)'], f.env), before);
+  }
+});
+
+test('automatic publication rejects a missing remote source branch', async t => {
+  const f = await fixture(t);
+  const sourceCommit = 'a'.repeat(40);
+  await f.artifact('1.2.3', { marker: { sourceCommit } });
+  await assert.rejects(publish(f.guardedOpts(sourceCommit), f.env));
+  assert.equal(f.refs(), '');
+});
+
+test('automatic publication publishes the artifact built from the current main commit', async t => {
+  const f = await fixture(t);
+  const sourceCommit = await f.mainCommit();
+  await f.artifact('1.2.3', { marker: { sourceCommit } });
+  await publish(f.guardedOpts(sourceCommit), f.env);
+  const marker = JSON.parse(git(f.remote, ['show', `${BRANCH}:${MARKER}`], f.env));
+  assert.equal(marker.sourceCommit, sourceCommit);
+  assert.equal(git(f.remote, ['rev-parse', 'refs/heads/main'], f.env), sourceCommit);
+  assert.equal(git(f.remote, ['show', `${BRANCH}:${DEPENDENCY}`], f.env), 'module.exports = "1.2.3";');
+});
+
+test('rerunning an older successful build cannot replace a newer marketplace artifact', async t => {
+  const f = await fixture(t);
+  const older = await f.mainCommit();
+  await f.artifact('1.2.3', { marker: { sourceCommit: older } });
+  await publish(f.guardedOpts(older), f.env);
+  const newer = await f.mainCommit('newer source commit');
+  await f.artifact('1.2.4', { marker: { sourceCommit: newer } });
+  await publish(f.guardedOpts(newer), f.env);
+  const published = f.head();
+  const before = git(f.remote, ['for-each-ref', '--format=%(refname):%(objectname)'], f.env);
+  await f.artifact('1.2.3', { marker: { sourceCommit: older } });
+  await publish(f.guardedOpts(older), f.env);
+  assert.equal(f.head(), published);
+  assert.equal(git(f.remote, ['for-each-ref', '--format=%(refname):%(objectname)'], f.env), before);
+  assert.equal(git(f.remote, ['show', `${BRANCH}:${DEPENDENCY}`], f.env), 'module.exports = "1.2.4";');
+});
+
+test('automatic publication rechecks main after preparing its commit and skips an obsolete artifact', async t => {
+  const f = await fixture(t);
+  const older = await f.mainCommit();
+  await f.artifact('1.2.3', { marker: { sourceCommit: older } });
+  await publish(f.guardedOpts(older), f.env);
+  const published = f.head();
+  // Make the next source object available without advancing main yet.
+  const newer = await f.mainCommit('next source commit', 'publisher-race-next');
+  const hooks = path.join(f.root, 'hooks');
+  await fs.mkdir(hooks);
+  const hook = path.join(hooks, 'post-commit');
+  const shellQuote = value => `'${value.replace(/'/g, `'"'"'`)}'`;
+  await fs.writeFile(hook, `#!/bin/sh\ngit --git-dir=${shellQuote(f.remote)} update-ref refs/heads/main ${newer} ${older}\n`);
+  await fs.chmod(hook, 0o755);
+  git(f.root, ['config', '--file', f.globalConfig, 'core.hooksPath', hooks], f.env);
+  await f.artifact('1.2.4', { marker: { sourceCommit: older } });
+  await publish(f.guardedOpts(older), f.env);
+  assert.equal(git(f.remote, ['rev-parse', 'refs/heads/main'], f.env), newer, 'fixture must advance main after the local publication commit');
+  assert.equal(f.head(), published);
+  assert.equal(git(f.remote, ['show', `${BRANCH}:${DEPENDENCY}`], f.env), 'module.exports = "1.2.3";');
+});
 
 test('marketplace publisher defaults to a plan without creating a remote branch', async t => {
   const f = await fixture(t);
