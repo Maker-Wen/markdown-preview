@@ -176,9 +176,11 @@ async function viewerHtml({ hostBridge: suppliedBridge } = {}) {
   const mermaid = await fs.readFile(path.join(build, 'dependencies/mermaid/mermaid.min.js'), 'utf8');
   const hostBridge = suppliedBridge ?? await fs.readFile(path.join(__dirname, '../assets/host-bridge.js'), 'utf8');
   const reader = await fs.readFile(path.join(__dirname, '../assets/reader.js'), 'utf8');
+  const appearance = await fs.readFile(path.join(__dirname, '../assets/appearance.js'), 'utf8');
   return template.replace('/* BUNDLED_STYLES */', () => css.replace(/<\/style/gi, '<\\/style'))
     .replace('/* BUNDLED_HOST_BRIDGE */', () => hostBridge.replace(/<\/script/gi, '<\\/script'))
     .replace('/* BUNDLED_MERMAID */', () => mermaid.replace(/<\/script/gi, '<\\/script'))
+    .replace('/* BUNDLED_APPEARANCE */', () => appearance.replace(/<\/script/gi, '<\\/script'))
     .replace('/* BUNDLED_READER */', () => reader.replace(/<\/script/gi, '<\\/script'));
 }
 module.exports = { render, viewerHtml };

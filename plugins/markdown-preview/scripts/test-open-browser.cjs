@@ -217,19 +217,17 @@ const markdown = (title, marker) => '# ' + title + '\n\n' + marker + '\n\n'
           const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
           return [name, { x, y, width, height }];
         })));
-        // Find the title/actions wrapping boundary from their actual rendered sizes.
-        // A shorter busy label used to move the controls back onto the title's row here.
-        let viewportWidth, before;
-        for (let width = 900; width >= 480; width -= 4) {
-          await host.setViewportSize({ width, height: 900 });
-          const bounds = await geometry();
-          if (bounds.actions.y >= bounds.title.y + bounds.title.height) {
-            viewportWidth = width;
-            before = bounds;
-            break;
-          }
-        }
-        assert.ok(before, 'A title/actions wrapping boundary must be exercised');
+        // Embedded readers keep the host-owned filename visually hidden. Exercise
+        // the narrow pane, where a changing busy label could still wrap the controls.
+        const viewportWidth = 320;
+        await host.setViewportSize({ width: viewportWidth, height: 900 });
+        await frame.evaluate(() => document.fonts.ready);
+        const before = await geometry();
+        assert.equal(await frame.locator('html').getAttribute('data-surface'), 'embedded');
+        assert.ok(before.title.width <= 1 && before.title.height <= 1,
+          'The embedded toolbar must not repeat the visible host filename');
+        assert.ok(before.actions.x >= 0 && before.actions.x + before.actions.width <= viewportWidth,
+          'Reading actions must stay within the narrow pane');
         const label = await frame.locator('#open-browser').innerText();
         const screenshotArea = { x: 0, y: 0, width: viewportWidth, height: 300 };
         await host.screenshot({ path: path.join(directory, 'open-button-before.png'), clip: screenshotArea });

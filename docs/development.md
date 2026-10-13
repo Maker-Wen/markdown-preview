@@ -44,8 +44,10 @@ NPM_CONFIG_ENGINE_STRICT=true npm run setup --prefix plugins/markdown-preview
 | `runtime/renderer/` | 锁定的 Crossnote 渲染依赖 |
 | `assets/viewer.html` | 阅读页结构与 reader 初始化 |
 | `assets/reader.js` | 当前文档接收、展示、监听重连、页面暂停与恢复，以及目录、主题和源码交互 |
+| `assets/appearance.js` | 宿主样式验证与应用、字体回退、宿主及系统主题选择 |
 | `assets/host-bridge.js` | MCP Apps 通信、文件及外部链接打开请求 |
 | `scripts/test-mcp.cjs`、`scripts/test-browser.cjs` | 服务和浏览器回归测试 |
+| `scripts/test-host-styles.cjs` | 真实 iframe 模拟宿主的字体、配色、主题及回退集成验证 |
 | `scripts/test-watch.cjs`、`scripts/test-live-preview.cjs` | 文件监听与真实文件保存至页面更新的回归测试 |
 | `scripts/test-browser-launch.cjs`、`scripts/test-browser-preview.cjs`、`scripts/test-open-browser.cjs` | 默认浏览器启动、HTTP 服务及按钮联动回归 |
 | `tests/fixtures/` | 固定测试样例 |
@@ -58,6 +60,7 @@ NPM_CONFIG_ENGINE_STRICT=true npm run setup --prefix plugins/markdown-preview
 npm test --prefix plugins/markdown-preview
 npx --prefix plugins/markdown-preview playwright install chromium
 npm run test:browser --prefix plugins/markdown-preview
+npm run test:styles --prefix plugins/markdown-preview
 npm run test:live --prefix plugins/markdown-preview
 npm run test:open-browser --prefix plugins/markdown-preview
 node --test tests/test-node-version.cjs tests/test-installer.cjs
@@ -75,9 +78,11 @@ PowerShell 远程安装器测试使用本地 ZIP 和网络夹具，需要 `pwsh`
 
 服务入口校验宿主文件上下文后，将已授权文档交给文档监听 module。该 module 统一读取、渲染和组装文档快照；浏览器首次打开和监听过期后的重开也使用同一个 `open` interface。首次打开仍先显示一次读取的内容，首轮刷新追上读取或渲染期间的保存。领域词汇见 [GLOSSARY.md](../GLOSSARY.md)。
 
-阅读页通过 `initializeReader({ nodes, host, mermaid })` 启动 reader module。`nodes` 在文档标题进入页面前捕获；`host` 沿用宿主和浏览器两个通信 adapter。当前文档、版本接收、监听重连与异步图表完成规则由 module 私有管理。主题变化只重画当前文档；页面暂停期间接收的新快照等到 `pageshow` 才恢复监听。切换源码视图会使旧图表任务的错误和滚动恢复失效。reader 与图表、样式一起内联到页面，保持独立 HTML 无额外资源请求。
+阅读页通过 `initializeReader({ nodes, host, mermaid })` 启动 reader module。`nodes` 在文档标题进入页面前捕获；`host` 沿用宿主和浏览器两个通信 adapter。当前文档、版本接收、监听重连与异步图表完成规则由 module 私有管理。主题变化只重画当前文档；`pagehide` 暂停监听并使未完成的图表任务失效，`pageshow` 恢复监听并补绘阅读模式下的图表，不重建正文 DOM。源码模式保持当前内容和位置，返回阅读时再绘制图表。切换源码视图会使旧图表任务的错误和滚动恢复失效。reader 与图表、样式一起内联到页面，保持独立 HTML 无额外资源请求。
 
-两个 adapter 通过同步 `connect(onDocument)` interface 提供初始文档快照与后续输入，返回 `{ initialDocument, tocVisible }`；宿主 adapter 先绑定通知再读取初始值，并把宿主标记的读取失败转换为同一页面中的 `Error` 值交给 reader。reader 应用目录与主题后接受初始输入，继续负责文档校验、版本顺序和过期监听过滤。浏览器 adapter 从专用启动数据提供快照与目录设置，无需创建宿主全局变量；目录设置优先于本地存储。每页初始化一次，`pagehide` 仅暂停文档监听，仍接收宿主输入。是否提供 `openBrowser` 操作决定“在浏览器打开”按钮是否显示。
+两个 adapter 通过同步 `connect(onDocument, onAppearance)` interface 提供初始文档快照与后续输入，返回 `{ initialDocument, tocVisible, initialAppearance, surface }` 中适用的字段。宿主 adapter 先绑定通知再读取初始值，并将读取失败作为 `Error` 值交给 reader。它在连接时异步启动 MCP Apps 初始化，保留 `hostContext` 并接收其变更；可选样式握手不阻塞文档，能力调用复用同一次初始化。浏览器 adapter 提供快照、目录设置和 `browser` surface，继续使用系统主题。每页初始化一次，页面暂停期间仍接收宿主输入；目录设置优先于本地存储。是否提供 `openBrowser` 操作决定浏览器入口是否显示。
+
+appearance module 只投影使用中的标准颜色及字体变量，采用 CSS 属性验证并清除替换快照中缺失的值；字体样式解析后仅保留本地或字体 MIME 内嵌来源的 `@font-face`。宿主主题优先于系统，没有宿主主题时响应系统变化；不相关上下文更新不会重画正文。图表使用相同主题和正文字体，并等待字体加载以确定文本布局。`test:styles` 验证模拟宿主支持、回退与来源边界，不代表当前 Codex 已实际提供完整样式。
 
 reader 处理文档锚点，并通过 host adapter 打开文件与外链。宿主 adapter 对 HTTPS 优先使用可用的 `openExternal`，其余情况通过 `ui/open-link` 请求宿主；快捷打开失败时保留原错误，不再尝试另一条打开路径。浏览器 adapter 继续通过新标签打开外链。
 

@@ -25,6 +25,7 @@
     connect() {
       // Browser pages receive one initial snapshot; saves arrive through refresh.
       return {
+        surface: 'browser',
         initialDocument: window.markdownBrowser?.document,
         tocVisible: window.markdownBrowser?.tocVisible ?? true
       };
