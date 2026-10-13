@@ -4,7 +4,16 @@
   const requestPrefix = `markdown-files-${crypto.getRandomValues(new Uint32Array(2)).join('-')}-`;
   let nextId = 0;
   let initialized;
+  let hostContext = {};
+  let onAppearance;
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+  function updateHostContext(update) {
+    if (!isObject(update)) return;
+    // MCP Apps updates merge top-level fields; an explicit styles field replaces it.
+    hostContext = { ...hostContext, ...update };
+    onAppearance?.(hostContext);
+  }
 
   function request(method, params, timeoutMs = 10000) {
     if (window.parent === window) return Promise.reject(new Error('此页面没有可用的文件宿主。'));
@@ -49,6 +58,7 @@
       if (result.protocolVersion !== protocolVersion) {
         throw new Error(`宿主使用了不支持的 MCP Apps 协议：${result.protocolVersion ?? '未知'}。`);
       }
+      updateHostContext(result.hostContext);
       window.parent.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, '*');
       return result.hostCapabilities;
     }).catch(error => {
@@ -61,7 +71,8 @@
   window.markdownHost = {
     // Bind future inputs before reading the initial value. Each page connects once;
     // pagehide pauses document watches, but must keep receiving host inputs.
-    connect(onDocument) {
+    connect(onDocument, appearanceListener) {
+      onAppearance = appearanceListener;
       function documentFromGlobals(globals) {
         // Partial notifications must not restore an older initial host output.
         if (!globals || (!Object.hasOwn(globals, 'toolOutput')
@@ -79,7 +90,18 @@
         const output = documentFromGlobals(event.detail?.globals);
         if (output !== undefined) onDocument(output);
       });
+      window.addEventListener('message', event => {
+        const data = event.data;
+        if (event.source !== window.parent || !isObject(data)
+          || data.jsonrpc !== '2.0' || Object.hasOwn(data, 'id')
+          || data.method !== 'ui/notifications/host-context-changed') return;
+        updateHostContext(data.params);
+      });
+      // Optional appearance negotiation must never delay or reject the document.
+      initialize().catch(() => {});
       return {
+        surface: 'embedded',
+        initialAppearance: hostContext,
         // Read getters directly: the host may expose these on its prototype.
         initialDocument: documentFromGlobals({
           toolOutput: window.openai?.toolOutput,

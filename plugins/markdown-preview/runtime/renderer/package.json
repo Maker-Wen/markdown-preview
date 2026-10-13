@@ -1,6 +1,6 @@
 {
   "name": "markdown-preview-renderer",
-  "version": "0.1.0+marketplace.ea8f31b768676964",
+  "version": "0.1.0+marketplace.d8ae6659d5e13f53",
   "private": true,
   "description": "Pinned Crossnote runtime for Markdown Preview",
   "engines": {
