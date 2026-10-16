@@ -133,8 +133,10 @@
       }
 
       .reader {
+        position: relative;
         display: grid;
-        grid-template-columns: 200px minmax(0,1fr);
+        grid-template-columns: var(--toc-width, 200px) minmax(0,1fr);
+        min-width: 0;
         min-height: 0;
       }
 
@@ -144,6 +146,41 @@
 
       .reader[data-toc=hidden] > aside {
         display: none;
+      }
+
+      .reader > #toc-resizer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: var(--toc-width, 200px);
+        width: 8px;
+        z-index: 1;
+        cursor: col-resize;
+        touch-action: none;
+      }
+
+      /* The hit target sits in the article gutter, clear of the TOC scrollbar. */
+      .reader > #toc-resizer::before {
+        content: '';
+        position: absolute;
+        inset: 0 auto 0 -1px;
+        width: 2px;
+      }
+
+      .reader > #toc-resizer:hover::before,
+      .reader > #toc-resizer:focus-visible::before,
+      .reader[data-toc-resizing] > #toc-resizer::before {
+        background: var(--accent);
+      }
+
+      .reader > #toc-resizer:focus-visible {
+        outline: none;
+      }
+
+      .reader[data-toc-resizing],
+      .reader[data-toc-resizing] * {
+        cursor: col-resize !important;
+        user-select: none;
       }
 
       aside {
@@ -496,6 +533,10 @@
           grid-template-rows: auto minmax(0,1fr);
         }
 
+        .reader > #toc-resizer {
+          display: none;
+        }
+
         aside {
           max-height: 25vh;
           padding: 12px 18px;
@@ -542,10 +583,13 @@
       </div>
     </header>
     <div class="reader" id="reader">
-      <aside aria-label="文档目录">
+      <aside id="toc-pane" aria-label="文档目录">
         <strong>目录</strong>
         <nav id="toc"></nav>
       </aside>
+      <div id="toc-resizer" role="separator" tabindex="0" aria-label="调整目录宽度"
+        aria-controls="toc-pane" aria-orientation="vertical" aria-valuemin="0"
+        aria-valuenow="200" title="拖动或使用左右方向键调整目录宽度，向左拖至边缘收起" hidden></div>
       <main id="main">
         <p id="error" role="alert" hidden></p>
         <p id="status" role="status" hidden></p>
