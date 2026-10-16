@@ -105,10 +105,8 @@ async function render(file, text) {
     const src = $(img).attr('src') || '';
     try {
       if (!src.startsWith('file:')) throw new Error('外部图片暂未载入');
-      const candidate = fileURLToPath(src);
-      // Crossnote combines the literal notebook root with a URL-encoded relative image path.
-      const decoded = inside(root, candidate) ? path.resolve(root, decodeURIComponent(path.relative(root, candidate))) : candidate;
-      const imagePath = await localFile(decoded, root);
+      // Crossnote emits a properly encoded file URL; decode exactly once to preserve literal % sequences.
+      const imagePath = await localFile(fileURLToPath(src), root);
       const type = imageTypes[path.extname(imagePath).toLowerCase()];
       if (!type) throw new Error('不支持此图片格式');
       const bytes = await readRegularFile(imagePath);

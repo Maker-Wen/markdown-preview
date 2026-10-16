@@ -32,7 +32,7 @@ const { readRegularFile } = require('./files.cjs');
     await fs.writeFile(path.join(dir, 'outside.svg'), '<svg>OUTSIDE_SENTINEL</svg>');
     await fs.symlink(path.join(dir, 'outside.svg'), path.join(docs, 'escape.svg'));
     const fence = String.fromCharCode(96).repeat(3);
-    const first = '# 文档 A\n\n<script>alert("data only")</script>\n\n## 完整目录\n\n$x^2 + y^2$\n\n' + fence + 'mermaid\nflowchart LR\n A-->B\n' + fence + '\n\n' + fence + 'js\nconst answer = 42;\n' + fence + '\n\n|列一|列二|\n|---|---|\n|甲|乙|\n\n![本地图](<中文 #1.svg>)\n\n![越界](escape.svg)\n\n@import "../outside.svg"\n\n文末标识 A';
+    const first = '# 文档 A\n\n<script>alert("data only")</script>\n\n## 完整目录\n\n$x^2 + y^2$\n\n' + fence + 'mermaid\nflowchart LR\n A-->B\n' + fence + '\n\n' + fence + 'js\nconst answer = 42;\n' + fence + '\n\n|列一|列二|\n|---|---|\n|甲|乙|\n\n![本地图](<中文 %231.svg>)\n\n![越界](escape.svg)\n\n@import "../outside.svg"\n\n文末标识 A';
     await fs.writeFile(file, first);
     const request = { name: tool.name, arguments: { file: { name: path.basename(file), resourceUri: 'codex-resource://test-a' } }, _meta: { 'openai/resource': { path: file } } };
     const a = await client.callTool(request);
@@ -70,6 +70,25 @@ const { readRegularFile } = require('./files.cjs');
     const { render } = require('./render.cjs');
     const cheerio = require('../runtime/renderer/node_modules/cheerio');
     const realFile = await fs.realpath(file);
+    const imageRoot = path.join(path.dirname(realFile), '图片 %23 空格');
+    await fs.mkdir(imageRoot);
+    const imageCases = [
+      ['中文 #1.svg', '中文 %231.svg'],
+      ['literal%.svg', 'literal%25.svg'],
+      ['literal%20.svg', 'literal%2520.svg'],
+      ['literal%23.svg', 'literal%2523.svg'],
+      ['literal%3F.svg', 'literal%253F.svg'],
+      ['suffix.svg', 'suffix.svg?size=1#preview']
+    ];
+    // A second decode must not silently read a different, existing file.
+    await fs.writeFile(path.join(imageRoot, 'literal .svg'), '<svg>WRONG_IMAGE</svg>');
+    for (const [name, target] of imageCases) {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><!--' + name + '--></svg>';
+      await fs.writeFile(path.join(imageRoot, name), svg);
+      const rendered = cheerio.load((await render(path.join(imageRoot, 'images.md'), '![image](<' + target + '>)')).html);
+      assert.equal(rendered('img').attr('src'), 'data:image/svg+xml;base64,' + Buffer.from(svg).toString('base64'),
+        'Image URL must resolve to the exact filename: ' + name);
+    }
     assert.equal((await render(file, '')).html.trim(), '');
     const importedFile = path.join(docs, 'comment-import.md');
     await fs.writeFile(importedFile, '# COMMENT_IMPORT_SENTINEL');
@@ -199,7 +218,7 @@ const { readRegularFile } = require('./files.cjs');
     assert.match(unsafeHeading.toc, /&lt;img/);
     const concurrent = await Promise.all(Array.from({ length: 6 }, (_, i) => render(realFile,
       '# 并发标题' + i + '\n\n' + fence + 'text\n' + codeBody + 'render-' + i + '\u2063'.repeat(16 * (2 ** i)) + '\n' + fence
-      + '\n\n@import "../outside.md"\n\n![image](<中文 #1.svg>)')));
+      + '\n\n@import "../outside.md"\n\n![image](<中文 %231.svg>)')));
     concurrent.forEach((doc, i) => {
       assert.match(doc.html, new RegExp('并发标题' + i));
       assert.match(doc.toc, new RegExp('并发标题' + i));
@@ -222,7 +241,7 @@ const { readRegularFile } = require('./files.cjs');
     const largeImage = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20"/><!--' + 'x'.repeat(5 * 1024 * 1024) + '--></svg>';
     await fs.writeFile(path.join(docs, 'large.svg'), largeImage);
     const largeText = '# 大文档\n\n' + ('preview content '.repeat(16) + '\n\n').repeat(4096)
-      + '\n![large](large.svg)\n\n![small](<中文 #1.svg>)\n\n## LARGE_DOCUMENT_END\n';
+      + '\n![large](large.svg)\n\n![small](<中文 %231.svg>)\n\n## LARGE_DOCUMENT_END\n';
     assert.ok(Buffer.byteLength(largeText) > 1024 * 1024);
     await fs.writeFile(file, largeText);
     const large = await client.callTool(request);
