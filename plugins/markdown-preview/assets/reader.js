@@ -9,6 +9,10 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   const expiredWatches = new Set();
   let browserRequest;
   const appearance = createReaderAppearance(refreshTheme);
+  const tocLayout = createTocLayout({
+    reader: $('reader'), separator: $('toc-resizer'), toggle: $('toggle-toc'),
+    saveVisibility: visible => savePreference('toc', visible ? 'visible' : 'hidden')
+  });
   $('open-browser').hidden = typeof host.openBrowser !== 'function';
 
   function stopWatching() {
@@ -103,6 +107,7 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   }
 
   function suspend() {
+    tocLayout.cancel();
     suspended = true;
     generation++;
     stopWatching();
@@ -133,11 +138,6 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
     } catch {
       // Hosts may disable storage; the controls must still work in this page.
     }
-  }
-
-  function setTocVisibility(visible) {
-    $('reader').dataset.toc = visible ? 'visible' : 'hidden';
-    $('toggle-toc').setAttribute('aria-expanded', String(visible));
   }
 
   function refreshTheme(dark) {
@@ -222,6 +222,7 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
       && output.revision < documentOutput.revision) return;
 
     const sameFile = documentOutput?.resourceUri === output.resourceUri;
+    if (!sameFile) tocLayout.reset();
     const scroll = sameFile ? $('main').scrollTop : 0;
     documentOutput = output;
     watchDocument(output);
@@ -244,12 +245,6 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
     if (id !== generation) return;
     $('main').scrollTo({ top: scroll, behavior: 'instant' });
   }
-
-  $('toggle-toc').addEventListener('click', () => {
-    const visible = $('reader').dataset.toc === 'hidden';
-    setTocVisibility(visible);
-    savePreference('toc', visible ? 'visible' : 'hidden');
-  });
 
   document.addEventListener('copy', event => {
     const selection = window.getSelection();
@@ -313,10 +308,147 @@ window.initializeReader = function initializeReader({ nodes, host, mermaid }) {
   const { initialDocument, tocVisible, initialAppearance, surface } = host.connect(acceptDocument, appearance.update);
   document.documentElement.dataset.surface = surface === 'browser' ? 'browser' : 'embedded';
   const savedToc = readPreference('toc', ['visible', 'hidden']);
-  setTocVisibility(typeof tocVisible === 'boolean'
+  tocLayout.setVisible(typeof tocVisible === 'boolean'
     ? tocVisible
     : savedToc === null ? !matchMedia('(max-width:700px)').matches : savedToc === 'visible');
   appearance.update(initialAppearance);
   appearance.refresh();
   acceptDocument(initialDocument);
 };
+
+function createTocLayout({ reader, separator, toggle, saveVisibility }) {
+  const defaultWidth = 200;
+  // Operable-pane floors, not a comfortable reading width or a fixed TOC maximum.
+  const minimumWidth = 120;
+  const minimumBodyWidth = 120;
+  const collapseWidth = 60;
+  const narrow = matchMedia('(max-width:700px)');
+  let preferredWidth = defaultWidth;
+  let visible = true;
+  let drag;
+
+  const maximumWidth = () => Math.max(minimumWidth, reader.clientWidth - minimumBodyWidth);
+  const clampWidth = width => Math.min(maximumWidth(), Math.max(minimumWidth, width));
+
+  function draw() {
+    const width = clampWidth(drag ? drag.width : preferredWidth);
+    reader.style.setProperty('--toc-width', width + 'px');
+    reader.dataset.toc = visible ? 'visible' : 'hidden';
+    toggle.setAttribute('aria-expanded', String(visible));
+    separator.hidden = !visible || narrow.matches;
+    separator.setAttribute('aria-valuemax', String(maximumWidth()));
+    separator.setAttribute('aria-valuenow', String(visible ? Math.round(width) : 0));
+    separator.setAttribute('aria-valuetext', visible ? Math.round(width) + ' 像素' : '已收起');
+  }
+
+  function focusAfterCollapse() {
+    if (!visible) toggle.focus({ preventScroll: true });
+  }
+
+  function finish(commit) {
+    if (!drag) return;
+    const finished = drag;
+    drag = undefined;
+    delete reader.dataset.tocResizing;
+    if (commit) {
+      // A collapsed gesture preserves the settled width from before it began.
+      if (visible && finished.moved) preferredWidth = finished.width;
+      if (visible !== finished.visible) saveVisibility(visible);
+    } else {
+      visible = finished.visible;
+    }
+    if (reader.hasPointerCapture(finished.pointerId)) reader.releasePointerCapture(finished.pointerId);
+    draw();
+    focusAfterCollapse();
+  }
+
+  function move(event) {
+    if (event.pointerId !== drag?.pointerId) return;
+    // The media-query change notification may follow the final pointer event.
+    if (narrow.matches) {
+      finish(false);
+      return;
+    }
+    drag.moved ||= event.clientX !== drag.startX;
+    const width = event.clientX - reader.getBoundingClientRect().left - drag.offset;
+    // Hysteresis prevents flicker around the snap point.
+    if (visible && width <= collapseWidth) visible = false;
+    else if (!visible && width >= minimumWidth) visible = true;
+    drag.width = clampWidth(width);
+    draw();
+  }
+
+  separator.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !event.isPrimary || drag || !visible || narrow.matches) return;
+    event.preventDefault();
+    separator.focus({ preventScroll: true });
+    const width = clampWidth(preferredWidth);
+    drag = { pointerId: event.pointerId, width, visible, startX: event.clientX, moved: false,
+      offset: event.clientX - reader.getBoundingClientRect().left - width };
+    // The reader stays present when the separator is hidden on collapse.
+    reader.setPointerCapture(event.pointerId);
+    reader.dataset.tocResizing = 'true';
+  });
+  reader.addEventListener('pointermove', move);
+  reader.addEventListener('pointerup', event => {
+    if (event.pointerId !== drag?.pointerId) return;
+    move(event);
+    finish(true);
+  });
+  for (const type of ['pointercancel', 'lostpointercapture']) {
+    reader.addEventListener(type, event => {
+      if (event.pointerId === drag?.pointerId) finish(false);
+    });
+  }
+  window.addEventListener('blur', () => finish(false));
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && drag) {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+
+  separator.addEventListener('keydown', event => {
+    if (drag || !visible || narrow.matches) return;
+    const step = event.shiftKey ? 40 : 16;
+    let width = clampWidth(preferredWidth);
+    if (event.key === 'ArrowLeft') width -= step;
+    else if (event.key === 'ArrowRight') width += step;
+    else if (event.key === 'Home' || event.key === 'Enter') width = 0;
+    else if (event.key === 'End') width = maximumWidth();
+    else return;
+    event.preventDefault();
+    // The keyboard can cross the minimum in one step, without a drag gesture.
+    if (width < minimumWidth) visible = false;
+    else preferredWidth = clampWidth(width);
+    draw();
+    if (!visible) saveVisibility(false);
+    focusAfterCollapse();
+  });
+
+  toggle.addEventListener('click', () => {
+    finish(false);
+    visible = !visible;
+    draw();
+    saveVisibility(visible);
+  });
+  narrow.addEventListener('change', () => {
+    finish(false);
+    draw();
+  });
+  new ResizeObserver(() => draw()).observe(reader);
+
+  return {
+    setVisible(value) {
+      finish(false);
+      visible = value;
+      draw();
+    },
+    reset() {
+      finish(false);
+      preferredWidth = defaultWidth;
+      draw();
+    },
+    cancel() { finish(false); }
+  };
+}
